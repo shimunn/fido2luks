@@ -88,9 +88,9 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
         luks::open(&conf.device.canonicalize()?)
     };
 
-    let prev_key_info = ask_str(
+    let prev_key_info = rpassword::read_password_from_tty(Some(
         "Please enter your current password or path to a keyfile in order to add a new key: ",
-    )?;
+    ))?;
 
     let prev_key = match prev_key_info.as_ref() {
         "" => None,
@@ -119,7 +119,6 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
 
         assemble_secret(&perform_challenge(&conf.credential_id, &salt)?, &salt)
     };
-    dbg!("Adding key");
     let slot = handle.add_keyslot(&secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
     Ok(slot)
 }

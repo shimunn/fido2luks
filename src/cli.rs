@@ -11,8 +11,15 @@ use ctap::FidoDevice;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::thread;
+use std::time::Duration;
 
 pub fn setup() -> Fido2LuksResult<()> {
+    while !authenticator_connected()? {
+        eprintln!("Please connect your authenticator");
+        thread::sleep(Duration::from_secs(1));
+    }
+
     let mut config = Config::default();
 
     let save_config = |c: &Config| {

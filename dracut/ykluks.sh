@@ -12,12 +12,12 @@ FIDO2LUKS_PROMPT="Password"
 LUKS_PASSPHRASE_FALLBACK="false"
 
 # Load config file.
-FIDO2LUKS_CONFIG="/etc/fido2luks.json"
+FIDO2LUKS_CONFIG="/etc//bin/fido2luks.json"
 if [ -f "$FIDO2LUKS_CONFIG" ] ; then
 	export FIDO2LUKS_CONFIG="$FIDO2LUKS_CONFIG"
 fi
 
-LUKS_UUIDS="$(getargs rd.fido2luks.uuid | tr ' ' '\n'| cut -d '-' -f 2-)"
+LUKS_UUIDS="$(getargs rd./bin/fido2luks.uuid | tr ' ' '\n'| cut -d '-' -f 2-)"
 
 display_msg_timeout () {
 	local MSG="$1"
@@ -39,11 +39,11 @@ hide_devices () {
 	HIDE_PCI="`lspci -mm -n | grep '^[^ ]* "02'|awk '{print $1}'`"
 
 	# ... and optionally all USB controllers...
-	if getargbool 0 rd.fido2luks.hide_all_usb; then
+	if getargbool 0 rd./bin/fido2luks.hide_all_usb; then
 	    HIDE_PCI="$HIDE_PCI `lspci -mm -n | grep '^[^ ]* "0c03'|awk '{print $1}'`"
 	fi
 
-	HIDE_PCI="$HIDE_PCI `getarg rd.fido2luks.hide_pci | tr ',' ' '`"
+	HIDE_PCI="$HIDE_PCI `getarg rd./bin/fido2luks.hide_pci | tr ',' ' '`"
 
 	modprobe xen-pciback 2>/dev/null || :
 
@@ -62,7 +62,7 @@ handle_authenticator () {
 	WAIT_COUNTER="0"
 	YUBIKEY_TEST=""
 	YUBIKEY_MSG="Please insert your authenticator..."
-	while ! fido2luks connected 2> /dev/null ; do
+	while ! /bin/fido2luks connected 2> /dev/null ; do
 	        YUBIKEY_TEST="1"
 		if [ "$SHOW_YK_INSERT_MSG" != "true" ] ; then
 			break
@@ -104,7 +104,7 @@ handle_authenticator () {
 			        fi
 		        done
 		else
-			fido2luks open
+			/bin/fido2luks open || display_msg_timeout "Failed to utilise authenticator"
 			YUBIKEY_MSG="Received response from yubikey."
 			display_msg_timeout "$YUBIKEY_MSG"
 			LUKS_OPEN_FAILURE="false"

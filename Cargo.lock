@@ -107,6 +107,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "envy"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "serde 1.0.100 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "errno"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -161,6 +169,7 @@ version = "0.1.0"
 dependencies = [
  "cryptsetup-rs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ctap 0.1.0 (git+https://git.shimun.net/shimun/ctap.git?branch=hmac_ext)",
+ "envy 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "keyutils 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -602,6 +611,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum cloudabi 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 "checksum cryptsetup-rs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9da293bc97d0ccf0f53e440537dc2dd945eaa79642997685a1c0664062ef0a29"
 "checksum ctap 0.1.0 (git+https://git.shimun.net/shimun/ctap.git?branch=hmac_ext)" = "<none>"
+"checksum envy 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "261b836bcf13f42a01c70351f56bd7b66db6e6fb58352bd214cb77e9269a34b4"
 "checksum errno 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)" = "1e2b2decb0484e15560df3210cf0d78654bb0864b2c138977c07e377a1bae0e2"
 "checksum errno 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "c2a071601ed01b988f896ab14b95e67335d1eeb50190932a1320f7fe3cadc84e"
 "checksum errno-dragonfly 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "14ca354e36190500e1e1fb267c647932382b54053c50b14970856c0b00a35067"

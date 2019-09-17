@@ -21,8 +21,11 @@ pub enum Fido2LuksError {
     ConfigurationError { cause: serde_json::error::Error },
     #[fail(display = "the submitted secret is not applicable to this luks device")]
     WrongSecret,
+    #[fail(display = "not an utf8 string")]
+    StringEncodingError { cause: FromUtf8Error },
 }
 
+use std::string::FromUtf8Error;
 use Fido2LuksError::*;
 
 impl From<FidoError> for Fido2LuksError {
@@ -46,5 +49,11 @@ impl From<io::Error> for Fido2LuksError {
 impl From<serde_json::error::Error> for Fido2LuksError {
     fn from(e: serde_json::error::Error) -> Self {
         ConfigurationError { cause: e }
+    }
+}
+
+impl From<FromUtf8Error> for Fido2LuksError {
+    fn from(e: FromUtf8Error) -> Self {
+        StringEncodingError { cause: e }
     }
 }

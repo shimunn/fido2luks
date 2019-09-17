@@ -8,7 +8,8 @@ build:
 install: build
 	sudo mkdir -p ${DRACUT_MODULE_D}
 	sudo cp bin/* /usr/local/bin/
-	sudo cp module-setup.sh ykluks.sh bin/* ${DRACUT_MODULE_D}/
+	sudo cp bin/* ${DRACUT_MODULE_D}/
+	sudo cp module-setup.sh fido2luks.sh bin/* ${DRACUT_MODULE_D}/
 	sudo chown -R root: ${DRACUT_MODULE_D}/
 setup: install
 	sudo bin/fido2luks setup

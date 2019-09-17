@@ -94,8 +94,6 @@ fn main() -> Fido2LuksResult<()> {
         ))
     };
     if args.is_empty() {
-        let salt = conf.input_salt.obtain(&conf.password_helper)?;
-        dbg!(hex::encode(&salt));
         if env.contains_key("CRYPTTAB_NAME") {
             //Indicates that this script is being run as keyscript
             let mut out = stdout();
@@ -109,7 +107,13 @@ fn main() -> Fido2LuksResult<()> {
         match args.first().map(|s| s.as_ref()).unwrap() {
             "addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
             "setup" => setup(),
-            "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => open(&envy::prefixed("FIDO2LUKS_").from_env::<EnvConfig>().expect("Missing env config values").into(), &secret()?),
+            "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => open(
+                &envy::prefixed("FIDO2LUKS_")
+                    .from_env::<EnvConfig>()
+                    .expect("Missing env config values")
+                    .into(),
+                &secret()?,
+            ),
             "open" => open(&conf, &secret()?),
             "connected" => match authenticator_connected()? {
                 false => {

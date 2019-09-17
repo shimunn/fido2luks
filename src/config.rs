@@ -8,9 +8,8 @@ use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::process::Command;
-
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EnvConfig {
@@ -18,25 +17,26 @@ pub struct EnvConfig {
     uuid: String,
     salt: String,
     mapper_name: String,
-    password_helper: String
+    password_helper: String,
 }
 
 impl Into<Config> for EnvConfig {
     fn into(self) -> Config {
-        Config{
+        Config {
             credential_id: self.credential_id,
             device: format!("/dev/disk/by-uuid/{}", self.uuid).into(),
             mapper_name: self.mapper_name,
             password_helper: PasswordHelper::Script(self.password_helper),
             input_salt: if PathBuf::from(&self.salt).exists() {
-                InputSalt::File { path: self.salt.into() }
+                InputSalt::File {
+                    path: self.salt.into(),
+                }
             } else {
                 InputSalt::AskPassword
-            }
+            },
         }
     }
 }
-
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {

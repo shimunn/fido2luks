@@ -153,7 +153,7 @@ impl PasswordHelper {
                     .output()
                     .map_err(|e| Fido2LuksError::AskPassError { cause: e })?
                     .stdout;
-                Ok(String::from_utf8(password)?)
+                Ok(String::from_utf8(password)?.trim().to_owned())
             }
         }
     }

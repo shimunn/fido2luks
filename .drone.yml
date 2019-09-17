@@ -10,5 +10,5 @@ steps:
  - name: test
    image: rust:1.37.0
    commands:
-    - apt update && apt install -y libcryptsetup-dev
+    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev
     - cargo test

@@ -9,7 +9,7 @@ use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::FidoDevice;
 
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
@@ -17,7 +17,12 @@ use std::time::Duration;
 pub fn setup() -> Fido2LuksResult<()> {
     while !authenticator_connected()? {
         eprintln!("Please connect your authenticator");
-        thread::sleep(Duration::from_secs(1));
+        for _ in 0..3 {
+            thread::sleep(Duration::from_secs(1));
+            if authenticator_connected()? {
+                break;
+            }
+        }
     }
 
     let mut config = Config::default();
@@ -65,6 +70,11 @@ pub fn setup() -> Fido2LuksResult<()> {
     save_config(&config);
 
     println!("Config saved to: fido2luks.json");
+
+    let slot = add_key_to_luks(&config).expect("Failed to add key to device");
+
+    println!("Added key to slot: {}", slot);
+
     Ok(())
 }
 
@@ -77,6 +87,22 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
     let dev = || -> luks::device::Result<CryptDeviceOpenBuilder> {
         luks::open(&conf.device.canonicalize()?)
     };
+
+    let prev_key_info = ask_str(
+        "Please enter your current password or path to a keyfile in order to add a new key: ",
+    )?;
+
+    let prev_key = match prev_key_info.as_ref() {
+        "" => None,
+        keyfile if PathBuf::from(keyfile).exists() => {
+            let mut f = File::open(keyfile)?;
+            let mut key = Vec::new();
+            f.read_to_end(&mut key)?;
+            Some(key)
+        }
+        password => Some(Vec::from(password.as_bytes())),
+    };
+
     let mut handle = match dev()?.luks1() {
         Ok(handle) => handle,
         Err(luks::device::Error::BlkidError(_)) => offer_format(dev()?)?,
@@ -94,7 +120,7 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
         assemble_secret(&perform_challenge(&conf.credential_id, &salt)?, &salt)
     };
     dbg!("Adding key");
-    let slot = handle.add_keyslot(&secret, None, None)?;
+    let slot = handle.add_keyslot(&secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
     Ok(slot)
 }
 

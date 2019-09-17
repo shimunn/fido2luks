@@ -2,6 +2,11 @@ kind: pipeline
 name: default
 
 steps:
+ - name: fmt
+   image: rust:1.37.0
+   commands:
+     -  rustup component add rustfmt
+     -  cargo fmt --all -- --check
  - name: test
    image: rust:1.37.0
    commands:

@@ -4,6 +4,7 @@ extern crate failure;
 extern crate serde_derive;
 use crate::cli::*;
 use crate::config::*;
+use crate::device::*;
 use crate::error::*;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
@@ -11,18 +12,18 @@ use cryptsetup_rs as luks;
 
 use cryptsetup_rs::Luks1CryptDevice;
 use ctap;
-use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
-use ctap::FidoDevice;
+
 use luks::device::Error::CryptsetupError;
 
 use std::collections::HashMap;
 use std::env;
 
-use std::io::{self, Read, Seek, Write};
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 mod cli;
 mod config;
+mod device;
 mod error;
 mod keystore;
 
@@ -30,26 +31,6 @@ fn open_container(device: &PathBuf, name: &str, secret: &[u8; 32]) -> Fido2LuksR
     let mut handle = luks::open(device.canonicalize()?)?.luks1()?;
     let _slot = handle.activate(name, &secret[..])?;
     Ok(())
-}
-
-fn perform_challenge(credential_id: &str, salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
-    let cred = FidoHmacCredential {
-        id: hex::decode(credential_id).unwrap(),
-        rp_id: "hmac".to_string(),
-    };
-    let mut errs = Vec::new();
-    for di in ctap::get_devices()? {
-        let mut dev = FidoDevice::new(&di)?;
-        match dev.hmac_challange(&cred, &salt[..]) {
-            Ok(secret) => {
-                return Ok(secret);
-            }
-            Err(e) => {
-                errs.push(e);
-            }
-        }
-    }
-    Err(errs.pop().ok_or(Fido2LuksError::NoAuthenticatorError)?)?
 }
 
 fn assemble_secret(hmac_result: &[u8], salt: &[u8]) -> [u8; 32] {

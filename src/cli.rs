@@ -9,7 +9,7 @@ use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::FidoDevice;
 
 use std::fs::File;
-use std::io::{self, Read, Seek, Write};
+use std::io::Write;
 use std::path::Path;
 
 pub fn setup() -> Fido2LuksResult<()> {

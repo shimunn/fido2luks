@@ -144,7 +144,7 @@ impl PasswordHelper {
         use PasswordHelper::*;
         match self {
             Systemd => unimplemented!(),
-            Stdin => Ok(ask_str("Password: ")?),
+            Stdin => Ok(rpassword::read_password_from_tty(Some("Password: "))?),
             Script(password_helper) => {
                 let mut helper_parts = password_helper.split(" ");
 

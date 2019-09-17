@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate failure;
-#[macro_use]
 extern crate serde_derive;
 use crate::cli::*;
 use crate::config::*;
@@ -20,6 +19,7 @@ use std::env;
 
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::process::exit;
 
 mod cli;
 mod config;
@@ -104,8 +104,18 @@ fn main() -> Fido2LuksResult<()> {
         match args.first().map(|s| s.as_ref()).unwrap() {
             "addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
             "setup" => setup(),
+            "connected" => match authenticator_connected()? {
+                false => {
+                    println!("no");
+                    exit(1)
+                }
+                _ => {
+                    println!("yes");
+                    exit(0)
+                }
+            },
             _ => {
-                eprintln!("Usage: setup | addkey");
+                eprintln!("Usage: setup | addkey | connected");
                 Ok(())
             } //"selfcontain" => package_self()
         }

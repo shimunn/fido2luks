@@ -90,3 +90,7 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
     let slot = handle.add_keyslot(&secret, None, None)?;
     Ok(slot)
 }
+
+pub fn authenticator_connected() -> Fido2LuksResult<bool> {
+    Ok(!device::get_devices()?.is_empty())
+}

@@ -105,7 +105,7 @@ fn main() -> Fido2LuksResult<()> {
         }
     } else {
         match args.first().map(|s| s.as_ref()).unwrap() {
-            "addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
+            "addkey" => add_key_to_luks(&conf).map(|_| ()),
             "setup" => setup(),
             "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => open(
                 &envy::prefixed("FIDO2LUKS_")

@@ -27,7 +27,7 @@ impl Into<Config> for EnvConfig {
             device: self.device.into(),
             mapper_name: self.mapper_name,
             password_helper: PasswordHelper::Script(self.password_helper),
-            input_salt: if PathBuf::from(&self.salt).exists() {
+            input_salt: if PathBuf::from(&self.salt).exists() && &self.salt != "Ask" {
                 InputSalt::File {
                     path: self.salt.into(),
                 }
@@ -135,7 +135,7 @@ pub enum PasswordHelper {
 
 impl Default for PasswordHelper {
     fn default() -> Self {
-        PasswordHelper::Script("plymouth ask-for-password".into())
+        PasswordHelper::Script("/usr/bin/systemd-ask-password --no-tty 'Please enter second factor for LUKS disk encryption!'".into())
     }
 }
 

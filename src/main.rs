@@ -84,8 +84,7 @@ fn open(conf: &Config, secret: &[u8; 32]) -> Fido2LuksResult<()> {
 fn main() -> Fido2LuksResult<()> {
     let args: Vec<_> = env::args().skip(1).collect(); //Ignore program name -> Vec
     let env = env::vars().collect::<HashMap<_, _>>();
-    let conf = Config::load_default_location()?;
-    let secret = || -> Fido2LuksResult<[u8; 32]> {
+    let secret = |conf: &Config| -> Fido2LuksResult<[u8; 32]> {
         let salt = conf.input_salt.obtain(&conf.password_helper)?;
 
         Ok(assemble_secret(
@@ -94,27 +93,30 @@ fn main() -> Fido2LuksResult<()> {
         ))
     };
     if args.is_empty() {
+        let conf = Config::load_default_location()?;
         if env.contains_key("CRYPTTAB_NAME") {
             //Indicates that this script is being run as keyscript
             let mut out = stdout();
-            out.write(&secret()?)?;
+            out.write(&secret(&conf)?)?;
             Ok(out.flush()?)
         } else {
-            io::stdout().write(&secret()?)?;
+            io::stdout().write(&secret(&conf)?)?;
             Ok(io::stdout().flush()?)
         }
     } else {
         match args.first().map(|s| s.as_ref()).unwrap() {
-            "addkey" => add_key_to_luks(&conf).map(|_| ()),
+            "addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
             "setup" => setup(),
-            "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => open(
-                &envy::prefixed("FIDO2LUKS_")
+            "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => {
+                let conf = envy::prefixed("FIDO2LUKS_")
                     .from_env::<EnvConfig>()
                     .expect("Missing env config values")
-                    .into(),
-                &secret()?,
-            ),
-            "open" => open(&conf, &secret()?),
+                    .into();
+                open(
+                    &conf,
+                    &secret(&conf)?)
+            },
+            "open" => open(&Config::load_default_location()?, &secret(&Config::load_default_location()?)?),
             "connected" => match authenticator_connected()? {
                 false => {
                     println!("no");

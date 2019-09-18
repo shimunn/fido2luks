@@ -17,6 +17,7 @@ use luks::device::Error::CryptsetupError;
 use std::collections::HashMap;
 use std::env;
 
+use std::convert::TryInto;
 use std::io::{self, stdout, Write};
 use std::path::PathBuf;
 use std::process::exit;
@@ -82,6 +83,86 @@ fn open(conf: &Config, secret: &[u8; 32]) -> Fido2LuksResult<()> {
 }*/
 
 fn main() -> Fido2LuksResult<()> {
+    let args: Vec<_> = env::args().skip(1).collect();
+    fn config_env() -> Fido2LuksResult<EnvConfig> {
+        Ok(envy::prefixed("FIDO2LUKS_").from_env::<EnvConfig>()?)
+    }
+    fn secret_from_env_config(conf: &EnvConfig) -> Fido2LuksResult<[u8; 32]> {
+        let conf = config_env()?;
+        let salt =
+            InputSalt::from(conf.salt.as_str()).obtain(&conf.password_helper.as_str().into())?;
+        Ok(assemble_secret(
+            &perform_challenge(&conf.credential_id, &salt)?,
+            &salt,
+        ))
+    }
+    match &args.iter().map(|s| s.as_str()).collect::<Vec<_>>()[..] {
+        ["print-secret"] => {
+            let conf = config_env()?;
+            io::stdout().write(hex::encode(&secret_from_env_config(&conf)?[..]).as_bytes())?;
+            Ok(io::stdout().flush()?)
+        }
+        ["open"] => {
+            let mut conf = config_env()?;
+            open_container(
+                &conf
+                    .device
+                    .as_ref()
+                    .expect("please specify FIDO2LUKS_DEVICE")
+                    .into(),
+                &conf
+                    .mapper_name
+                    .as_ref()
+                    .expect("please specify FIDO2LUKS_MAPPER_NAME"),
+                &secret_from_env_config(&conf)?,
+            )
+        }
+        ["open", device, mapper_name] => {
+            let mut conf = config_env()?;
+            conf.mapper_name = Some(mapper_name.to_string());
+            conf.device = Some(device.to_string());
+            open_container(
+                &conf
+                    .device
+                    .as_ref()
+                    .expect("please specify FIDO2LUKS_DEVICE")
+                    .into(),
+                &conf
+                    .mapper_name
+                    .as_ref()
+                    .expect("please specify FIDO2LUKS_MAPPER_NAME"),
+                &secret_from_env_config(&conf)?,
+            )
+        }
+        ["credential"] => {
+            let cred = make_credential_id()?;
+            println!("{}", hex::encode(&cred.id));
+            Ok(())
+        }
+        ["addkey", device] => {
+            let mut conf = config_env()?;
+            conf.device = conf.device.or(Some(device.to_string()));
+            let slot = add_key_to_luks(
+                conf.device.as_ref().unwrap().into(),
+                &secret_from_env_config(&conf)?,
+            )?;
+            println!("Added to key to device {}, slot: {}", device, slot);
+            Ok(())
+        }
+        _ => {
+            println!("Usage:\n
+            fido2luks open <device> [name]\n
+            fido2luks addkey <device>\n\n
+            Environment variables:\n
+            <FIDO2LUKS_CREDENTIAL_ID>\n
+            <FIDO2LUKS_SALT>\n
+            ");
+            Ok(())
+        }
+    }
+}
+
+fn main_old() -> Fido2LuksResult<()> {
     let args: Vec<_> = env::args().skip(1).collect(); //Ignore program name -> Vec
     let env = env::vars().collect::<HashMap<_, _>>();
     let secret = |conf: &Config| -> Fido2LuksResult<[u8; 32]> {
@@ -105,18 +186,19 @@ fn main() -> Fido2LuksResult<()> {
         }
     } else {
         match args.first().map(|s| s.as_ref()).unwrap() {
-            "addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
+            //"addkey" => add_key_to_luks(&Config::load_default_location()?).map(|_| ()),
             "setup" => setup(),
             "open" if args.get(1).map(|a| &*a == "-e").unwrap_or(false) => {
                 let conf = envy::prefixed("FIDO2LUKS_")
                     .from_env::<EnvConfig>()
                     .expect("Missing env config values")
-                    .into();
-                open(
-                    &conf,
-                    &secret(&conf)?)
-            },
-            "open" => open(&Config::load_default_location()?, &secret(&Config::load_default_location()?)?),
+                    .try_into()?;
+                open(&conf, &secret(&conf)?)
+            }
+            "open" => open(
+                &Config::load_default_location()?,
+                &secret(&Config::load_default_location()?)?,
+            ),
             "connected" => match authenticator_connected()? {
                 false => {
                     println!("no");

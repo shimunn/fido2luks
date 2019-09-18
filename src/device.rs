@@ -4,6 +4,26 @@ use ctap;
 use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::{FidoDevice, FidoError, FidoErrorKind};
 
+pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
+   let mut errs = Vec::new();
+    match get_devices()? {
+        ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
+        devs => {
+            for mut dev in devs.into_iter() {
+                match dev.make_hmac_credential() {
+                    Ok(cred) => {
+                        return Ok(cred);
+                    }
+                    Err(e) => {
+                        errs.push(e);
+                    }
+                }
+            }
+        }
+    }
+    Err(errs.pop().ok_or(Fido2LuksError::NoAuthenticatorError)?)?
+}
+
 pub fn perform_challenge(credential_id: &str, salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
     let cred = FidoHmacCredential {
         id: hex::decode(credential_id).unwrap(),

@@ -5,7 +5,7 @@ authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
 [dependencies]
-ctap = { git = "https://git.shimun.net/shimun/ctap.git", branch = "hmac_ext" }
+ctap = { git = "https://github.com/shimunn/ctap.git", branch = "hmac_ext" }
 cryptsetup-rs = "0.2.0"
 hex = "0.3.2"
 rust-crypto = "0.2.36"

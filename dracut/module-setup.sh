@@ -12,8 +12,11 @@ depends() {
 }
 
 install() {
+
+    patch 
+
     #inst_hook pre-trigger 91 "$moddir/ykluks.sh"
-    inst_hook initqueue 01 "$moddir/fido2luks.sh"
+    #inst_hook initqueue 01 "$moddir/fido2luks.sh"
     #inst_hook pre-mount 1 "$moddir/fix_crypttab.sh"
     #inst_hook pre-trigger 10 "$moddir/ykluks.sh"
     #inst_hook cmdline 5 "$moddir/ykluks.sh"
@@ -36,8 +39,9 @@ install() {
     #inst_simple "/usr/bin/true" "/bin/true"
     #inst_simple "/usr/sbin/blkid" "/bin/blkid"
     #inst_simple "/usr/bin/ykchalresp" "/bin/ykchalresp"
-    inst_simple "/etc/fido2luks.json" "/etc/fido2luks.json"
-    inst_simple "$moddir/fido2luks" "/bin/f2l"
+    inst_simple "/usr/bin/xxd" "/usr/bin/xxd"
+    inst_simple "$moddir/fido2luks" "/usr/bin/fido2luks"
+    inst_simple "$moddir/dracut-crypt-fido2-lib.sh" "/lib/dracut-crypt-fido2-lib.sh"
     #inst_rules "$moddir/20-ykfde.rules"
     inst_rules "/usr/lib/udev/rules.d/60-u2f-hidraw.rules"
     #inst_simple "$moddir/ykluks.sh" "/bin/ykluks.sh"
@@ -52,7 +56,7 @@ install() {
         $systemdsystemunitdir/systemd-ask-password-console.service \
         systemd-ask-password systemd-tty-ask-password-agent
 
-    dracut_need_initqueue
+    #dracut_need_initqueue
 }
 
 installkernel() {

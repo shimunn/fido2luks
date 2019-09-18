@@ -1,6 +1,6 @@
 #!/bin/sh
 
-LUKS_DEVICES="$(getargs rd.fido2luks.devices | tr ' ' '\n'| cut -d '-' -f 2-)"
+LUKS_DEVICES="$(getargs rd.fido2luks.devices | tr ' ' '\n')"
 CREDENTIAL_ID="$(getargs rd.fido2luks.credentialid)"
 SALT="$(getargs rd.fido2luks.salt)"
 
@@ -34,16 +34,24 @@ handle_authenticator() {
         for DEV in $LUKS_DEVICES ; do
           export FIDO2LUKS_DEVICE="$DEV"
           export FIDO2LUKS_MAPPER_NAME="${MAPPER_NAME:-luks-$DEV}"
-          display_msg_timeout "Watch your authenicator"
-          ERR="$(/bin/f2l open -e 2>&1)"
-          if [ "$?" -eq 1 ]; then
-            display_msg_timeout "Failed to unlock: $ERR"
-            sleep 5
-          else
-            exit 1
-          fi
+          TRIES="0"
+          while true; do
+                  ERR="$(/bin/f2l open -e 2>&1)"
+                  if [ "$?" -eq 1 ]; then
+                    display_msg_timeout "Failed to unlock: $ERR"
+                    TRIES="$[$TRIES+1]"
+                    if [ "$TRIES" -gt 5 ]; then
+                        exit 1
+                    fi
+                    sleep 5
+                  else
+                    exit 0
+                  fi
+          done
         done
         
 }
 
-handle_authenticator
+if [ ! -z "$LUKS_DEVICES" ]; then
+        handle_authenticator
+fi

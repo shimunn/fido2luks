@@ -18,11 +18,34 @@ pub enum Fido2LuksError {
     #[fail(display = "no authenticator found, please ensure you device is plugged in")]
     IoError { cause: io::Error },
     #[fail(display = "failed to parse config, please check formatting and contents")]
-    ConfigurationError { cause: serde_json::error::Error },
+    ConfigurationError { cause: ConfigurationError },
     #[fail(display = "the submitted secret is not applicable to this luks device")]
     WrongSecret,
     #[fail(display = "not an utf8 string")]
     StringEncodingError { cause: FromUtf8Error },
+}
+
+#[derive(Debug)]
+pub enum ConfigurationError {
+    Json(serde_json::error::Error),
+    Env(envy::Error),
+    MissingField(String),
+}
+
+impl From<serde_json::error::Error> for Fido2LuksError {
+    fn from(e: serde_json::error::Error) -> Self {
+        Fido2LuksError::ConfigurationError {
+            cause: ConfigurationError::Json(e),
+        }
+    }
+}
+
+impl From<envy::Error> for Fido2LuksError {
+    fn from(e: envy::Error) -> Self {
+        Fido2LuksError::ConfigurationError {
+            cause: ConfigurationError::Env(e),
+        }
+    }
 }
 
 use std::string::FromUtf8Error;
@@ -43,12 +66,6 @@ impl From<cryptsetup_rs::device::Error> for Fido2LuksError {
 impl From<io::Error> for Fido2LuksError {
     fn from(e: io::Error) -> Self {
         IoError { cause: e }
-    }
-}
-
-impl From<serde_json::error::Error> for Fido2LuksError {
-    fn from(e: serde_json::error::Error) -> Self {
-        ConfigurationError { cause: e }
     }
 }
 

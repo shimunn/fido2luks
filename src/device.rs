@@ -5,7 +5,7 @@ use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::{FidoDevice, FidoError, FidoErrorKind};
 
 pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
-   let mut errs = Vec::new();
+    let mut errs = Vec::new();
     match get_devices()? {
         ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
         devs => {

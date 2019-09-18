@@ -5,6 +5,7 @@ use crypto::sha2::Sha256;
 
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryInto;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -13,28 +14,31 @@ use std::process::Command;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct EnvConfig {
-    credential_id: String,
-    device: String,
-    salt: String,
-    mapper_name: String,
-    password_helper: String,
+    pub credential_id: String,
+    pub device: Option<String>,
+    pub salt: String,
+    pub mapper_name: Option<String>,
+    pub password_helper: String,
 }
 
-impl Into<Config> for EnvConfig {
-    fn into(self) -> Config {
-        Config {
+impl TryInto<Config> for EnvConfig {
+    type Error = Fido2LuksError;
+
+    fn try_into(self) -> Fido2LuksResult<Config> {
+        Ok(Config {
             credential_id: self.credential_id,
-            device: self.device.into(),
-            mapper_name: self.mapper_name,
+            device: self
+                .device
+                .ok_or(Fido2LuksError::ConfigurationError {
+                    cause: ConfigurationError::MissingField("DEVICE".into()),
+                })?
+                .into(),
+            mapper_name: self.mapper_name.ok_or(Fido2LuksError::ConfigurationError {
+                cause: ConfigurationError::MissingField("DEVICE_MAPPER".into()),
+            })?,
             password_helper: PasswordHelper::Script(self.password_helper),
-            input_salt: if PathBuf::from(&self.salt).exists() && &self.salt != "Ask" {
-                InputSalt::File {
-                    path: self.salt.into(),
-                }
-            } else {
-                InputSalt::AskPassword
-            },
-        }
+            input_salt: self.salt.as_str().into(),
+        })
     }
 }
 
@@ -93,6 +97,16 @@ impl Default for InputSalt {
     }
 }
 
+impl From<&str> for InputSalt {
+    fn from(s: &str) -> Self {
+        if PathBuf::from(s).exists() && s != "Ask" {
+            InputSalt::File { path: s.into() }
+        } else {
+            InputSalt::AskPassword
+        }
+    }
+}
+
 impl InputSalt {
     pub fn obtain(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<[u8; 32]> {
         let mut digest = Sha256::new();
@@ -136,6 +150,15 @@ pub enum PasswordHelper {
 impl Default for PasswordHelper {
     fn default() -> Self {
         PasswordHelper::Script("/usr/bin/systemd-ask-password --no-tty 'Please enter second factor for LUKS disk encryption!'".into())
+    }
+}
+
+impl From<&str> for PasswordHelper {
+    fn from(s: &str) -> Self {
+        match s {
+            "stdin" => PasswordHelper::Stdin,
+            s => PasswordHelper::Script(s.into()),
+        }
     }
 }
 

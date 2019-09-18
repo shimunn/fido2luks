@@ -71,22 +71,21 @@ pub fn setup() -> Fido2LuksResult<()> {
 
     println!("Config saved to: fido2luks.json");
 
-    let slot = add_key_to_luks(&config).expect("Failed to add key to device");
+    //let slot = add_key_to_luks(&config).expect("Failed to add key to device");
 
-    println!("Added key to slot: {}", slot);
+    //println!("Added key to slot: {}", slot);
 
     Ok(())
 }
 
-pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
+pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32]) -> Fido2LuksResult<u8> {
     fn offer_format(
         _dev: CryptDeviceOpenBuilder,
     ) -> Fido2LuksResult<CryptDeviceHandle<Luks1Params>> {
         unimplemented!()
     }
-    let dev = || -> luks::device::Result<CryptDeviceOpenBuilder> {
-        luks::open(&conf.device.canonicalize()?)
-    };
+    let dev =
+        || -> luks::device::Result<CryptDeviceOpenBuilder> { luks::open(&device.canonicalize()?) };
 
     let prev_key_info = rpassword::read_password_from_tty(Some(
         "Please enter your current password or path to a keyfile in order to add a new key: ",
@@ -113,13 +112,7 @@ pub fn add_key_to_luks(conf: &Config) -> Fido2LuksResult<u8> {
         } //TODO: find correct errorno and offer to format as luks
         err => err?,
     };
-
-    let secret = {
-        let salt = conf.input_salt.obtain(&conf.password_helper)?;
-
-        assemble_secret(&perform_challenge(&conf.credential_id, &salt)?, &salt)
-    };
-    let slot = handle.add_keyslot(&secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
+    let slot = handle.add_keyslot(secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
     Ok(slot)
 }
 

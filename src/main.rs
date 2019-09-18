@@ -150,13 +150,15 @@ fn main() -> Fido2LuksResult<()> {
             Ok(())
         }
         _ => {
-            println!("Usage:\n
+            println!(
+                "Usage:\n
             fido2luks open <device> [name]\n
             fido2luks addkey <device>\n\n
             Environment variables:\n
             <FIDO2LUKS_CREDENTIAL_ID>\n
             <FIDO2LUKS_SALT>\n
-            ");
+            "
+            );
             Ok(())
         }
     }

@@ -7,7 +7,8 @@ fido2_decrypt() {
         local keypath="$2"
         #Unused local keydev=$3
         #Unused local device=$4
-        export FIDO2LUKS_CREDENTIAL_ID="${keypath%.*}"
+        . /etc/$keypath
+        export FIDO2LUKS_CREDENTIAL_ID="${CREDENTIAL_ID:-$FIDO2LUKS_CREDENTIAL_ID}"
         export FIDO2LUKS_SALT="$(getargs rd.fido2luks.salt)"
         export FIDO2LUKS_PASSWORD_HELPER="/usr/bin/systemd-ask-password 'Disk 2fa password'"
         if [ -z "$FIDO2LUKS_SALT" ]; then

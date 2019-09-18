@@ -7,13 +7,10 @@ check() {
 }
 
 depends() {
-	echo rootfs-block
-	return 0
+    echo crypt
 }
 
 install() {
-
-    patch 
 
     #inst_hook pre-trigger 91 "$moddir/ykluks.sh"
     #inst_hook initqueue 01 "$moddir/fido2luks.sh"

@@ -60,5 +60,5 @@ Just reboot and see if it works, if thats the case you should remove your old le
 cryptsetup luksHeaderBackup /dev/disk/by-uuid/<DISK_UUID> --header-backup-file luks_backup_<DISK_UUID>
 #Slot should be 0 if you only had one previous password otherwise consult cryptsetup luksDump
 #There is no turning back if you mess this up, make sure you made a backup
-cryptsetup luksKillSlot /dev/disk/by-uuid/<DISK_UUID> <SLOT>
+FIDO2LUKS_PASSWORD_HELPER=stdin fido2luks print-secret | xxd -r -p - | cryptsetup luksKillSlot /dev/disk/by-uuid/<DISK_UUID> <SLOT>
 ```

@@ -6,7 +6,13 @@ Note: This has only been tested under Fedora 30 using a Solo Key
 
 ## Setup
 
-## Device
+### Prerequisites
+
+```
+dnf install cargo cryptsetup-devel -y
+```
+
+### Device
 
 ```
 git clone https://github.com/shimunn/fido2luks.git && cd fido2luks
@@ -27,7 +33,7 @@ FIDO2LUKS_PASSWORD_HELPER=stdin sudo -E fido2luks open /dev/disk/by-uuid/<DISK_U
 
 ```
 
-## Dracut
+### Dracut
 
 ```
 cd dracut
@@ -35,7 +41,7 @@ cd dracut
 sudo make install
 ```
 
-## Grub
+### Grub
 
 Add `rd.luks.2fa=<CREDENTIAL_ID>:<DISK_UUID>` to `GRUB_CMDLINE_LINUX`
 

@@ -26,7 +26,6 @@ mod cli;
 mod config;
 mod device;
 mod error;
-mod keystore;
 
 fn open_container(device: &PathBuf, name: &str, secret: &[u8; 32]) -> Fido2LuksResult<()> {
     let mut handle = luks::open(device.canonicalize()?)?.luks1()?;

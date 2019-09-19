@@ -13,7 +13,6 @@ failure = "0.1.5"
 serde_derive = "1.0.100"
 serde = "1.0.100"
 serde_json = "1.0.40"
-keyutils = "0.2.1"
 rpassword = "4.0.1"
 envy = "0.4.0"
 

@@ -3,7 +3,7 @@ use crate::*;
 
 use cryptsetup_rs as luks;
 use cryptsetup_rs::api::{CryptDeviceHandle, CryptDeviceOpenBuilder, Luks1Params};
-use cryptsetup_rs::Luks1CryptDevice;
+use cryptsetup_rs::{Luks1CryptDevice, CryptDevice};
 use ctap;
 use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::FidoDevice;
@@ -112,6 +112,7 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32]) -> Fido2LuksResult<u8
         } //TODO: find correct errorno and offer to format as luks
         err => err?,
     };
+    handle.set_iteration_time(50);
     let slot = handle.add_keyslot(secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
     Ok(slot)
 }

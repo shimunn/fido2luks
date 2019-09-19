@@ -24,7 +24,10 @@ install () {
 
         inst "$moddir/luks-2fa.target" "/etc/systemd/system/luks-2fa.target"
         mkdir -p "$initdir/etc/systemd/system/luks-2fa.target.wants"
+        
+        inst "$moddir/fido2-connected.service" "/etc/systemd/system/fido2-connected.service"
 
         mkdir -p "$initdir/etc/systemd/system/sysinit.target.wants"
         ln -sf "/etc/systemd/system/luks-2fa.target" "$initdir/etc/systemd/system/sysinit.target.wants/"
+        ln -sf "/etc/systemd/system/fido2-connected.service" "$initdir/etc/systemd/system/sysinit.target.wants/"
 }

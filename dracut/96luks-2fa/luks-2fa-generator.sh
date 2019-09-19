@@ -23,7 +23,7 @@ generate_service () {
                 printf -- "[Unit]"
                 printf -- "\nDescription=%s" "2fa for luks"
                 printf -- "\nBindsTo=%s" "$target_dev"
-                printf -- "\nAfter=%s cryptsetup-pre.target systemd-journald.socket" "$target_dev" #TODO: create service to wait or authenicator
+                printf -- "\nAfter=%s cryptsetup-pre.target fido2-connected.service systemd-journald.socket" "$target_dev" #TODO: create service to wait or authenicator
                 printf -- "\nBefore=%s umount.target luks-2fa.target" "$crypto_target_service"
                 printf -- "\nConflicts=umount.target"
                 printf -- "\nDefaultDependencies=no"

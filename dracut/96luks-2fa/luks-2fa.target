@@ -1,0 +1,4 @@
+[Unit]
+Description=2FA with LUKS
+Before=sysinit.target dracut-pre-mount.service
+After=systemd-ask-password-console.path

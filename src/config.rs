@@ -167,14 +167,32 @@ impl PasswordHelper {
         use PasswordHelper::*;
         match self {
             Systemd => unimplemented!(),
-            Stdin => Ok(rpassword::read_password_from_tty(Some("Password: "))?),
+            Stdin => Ok(rpassword::read_password_from_tty(Some("Password: "))
+                .map_err(|e| Fido2LuksError::AskPassError {
+                    cause: AskPassError::IO(e),
+                })
+                .and_then(|pass| {
+                    match rpassword::read_password_from_tty(Some("Password again: ")).map_err(|e| {
+                        Fido2LuksError::AskPassError {
+                            cause: AskPassError::IO(e),
+                        }
+                    }) {
+                        Ok(ref pass2) if &pass == pass2 => Ok(pass),
+                        Ok(_) => Err(Fido2LuksError::AskPassError {
+                            cause: error::AskPassError::Mismatch,
+                        }),
+                        e => e,
+                    }
+                })?),
             Script(password_helper) => {
                 let mut helper_parts = password_helper.split(" ");
 
                 let password = Command::new((&mut helper_parts).next().unwrap())
                     .args(helper_parts)
                     .output()
-                    .map_err(|e| Fido2LuksError::AskPassError { cause: e })?
+                    .map_err(|e| Fido2LuksError::AskPassError {
+                        cause: error::AskPassError::IO(e),
+                    })?
                     .stdout;
                 Ok(String::from_utf8(password)?.trim().to_owned())
             }

@@ -1,12 +1,12 @@
 use ctap::FidoError;
-use std::io;
+use std::{fmt, io};
 
 pub type Fido2LuksResult<T> = Result<T, Fido2LuksError>;
 
 #[derive(Debug, Fail)]
 pub enum Fido2LuksError {
     #[fail(display = "unable to retrieve password: {}", cause)]
-    AskPassError { cause: io::Error },
+    AskPassError { cause: AskPassError },
     #[fail(display = "unable to read keyfile: {}", cause)]
     KeyfileError { cause: io::Error },
     #[fail(display = "authenticator error: {}", cause)]
@@ -30,6 +30,14 @@ pub enum ConfigurationError {
     Json(serde_json::error::Error),
     Env(envy::Error),
     MissingField(String),
+}
+
+#[derive(Debug, Fail)]
+pub enum AskPassError {
+    #[fail(display = "unable to retrieve password: {}", _0)]
+    IO(io::Error),
+    #[fail(display = "provided passwords don't match")]
+    Mismatch,
 }
 
 impl From<serde_json::error::Error> for Fido2LuksError {

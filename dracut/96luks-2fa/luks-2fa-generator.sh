@@ -1,6 +1,6 @@
 #!/bin/bash
 
-NORMAL_DIR="/run/systemd/system"
+NORMAL_DIR="/tmp//run/systemd/system"
 LUKS_2FA_WANTS="/etc/systemd/system/luks-2fa.target.wants"
 
 CRYPTSETUP="/usr/lib/systemd/systemd-cryptsetup"
@@ -23,7 +23,7 @@ generate_service () {
                 printf -- "[Unit]"
                 printf -- "\nDescription=%s" "2fa for luks"
                 printf -- "\nBindsTo=%s" "$target_dev"
-                printf -- "\nAfter=%s cryptsetup-pre.target fido2-connected.service systemd-journald.socket" "$target_dev" #TODO: create service to wait or authenicator
+                printf -- "\nAfter=%s cryptsetup-pre.target systemd-journald.socket" "$target_dev" #TODO: create service to wait or authenicator
                 printf -- "\nBefore=%s umount.target luks-2fa.target" "$crypto_target_service"
                 printf -- "\nConflicts=umount.target"
                 printf -- "\nDefaultDependencies=no"
@@ -50,7 +50,7 @@ generate_service () {
                 printf -- "\nConditionPathExists=!/dev/mapper/luks-%s" "$target_uuid"
         } > "${sd_dir}/${crypto_target_service}.d/drop-in.conf"
 
-        ln -sf "$sd_service" "${LUKS_2FA_WANTS}/"
+       # ln -sf "$sd_service" "${LUKS_2FA_WANTS}/"
 }
 
 parse_cmdline () {
@@ -81,4 +81,5 @@ generate_from_cmdline () {
         done
 }
 
-generate_from_cmdline
+#generate_from_cmdline
+generate_service CRED UUID $timeout

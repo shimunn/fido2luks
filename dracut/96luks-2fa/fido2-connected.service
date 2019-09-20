@@ -5,6 +5,6 @@ Description=Wait for a FIDO2 device to be connected
 Type=oneshot
 Environment=CON_MSG="Please connect your authenicator"
 ExecStartPre=/usr/bin/plymouth display-message --text "${CON_MSG}"
-ExecStart=/bin/bash -c 'while ! fido2luks connected; do sleep 1; done'
+ExecStart=/bin/bash -c 'while ! /usr/bin/fido2luks connected; do /usr/bin/sleep 1; done'
 ExecStopPost=/usr/bin/plymouth hide-message --text "${CON_MSG}"
 

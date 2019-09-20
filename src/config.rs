@@ -3,88 +3,14 @@ use crate::*;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 
-use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::convert::TryInto;
-use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
+use std::str::FromStr;
 
-#[derive(Debug, Deserialize, Serialize)]
-pub struct EnvConfig {
-    pub credential_id: String,
-    pub device: Option<String>,
-    pub salt: String,
-    pub mapper_name: Option<String>,
-    pub password_helper: String,
-}
-
-impl TryInto<Config> for EnvConfig {
-    type Error = Fido2LuksError;
-
-    fn try_into(self) -> Fido2LuksResult<Config> {
-        Ok(Config {
-            credential_id: self.credential_id,
-            device: self
-                .device
-                .ok_or(Fido2LuksError::ConfigurationError {
-                    cause: ConfigurationError::MissingField("DEVICE".into()),
-                })?
-                .into(),
-            mapper_name: self.mapper_name.ok_or(Fido2LuksError::ConfigurationError {
-                cause: ConfigurationError::MissingField("DEVICE_MAPPER".into()),
-            })?,
-            password_helper: PasswordHelper::Script(self.password_helper),
-            input_salt: self.salt.as_str().into(),
-        })
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Config {
-    pub credential_id: String,
-    pub input_salt: InputSalt,
-    pub device: PathBuf,
-    pub mapper_name: String,
-    pub password_helper: PasswordHelper,
-}
-
-impl Config {
-    pub fn load_default_location() -> Fido2LuksResult<Config> {
-        Self::load_config(
-            &mut File::open(
-                env::vars()
-                    .collect::<HashMap<_, _>>()
-                    .get("FIDO2LUKS_CONFIG")
-                    .unwrap_or(&"/etc/fido2luks.json".to_owned()),
-            )
-            .or(File::open("fido2luks.json"))?,
-        )
-    }
-
-    pub fn load_config(reader: &mut dyn Read) -> Fido2LuksResult<Config> {
-        let mut conf_str = String::new();
-        reader.read_to_string(&mut conf_str)?;
-
-        Ok(serde_json::from_str(&conf_str)?)
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            credential_id: "<required>".into(),
-            input_salt: Default::default(),
-            device: "/dev/some-vg/<volume>".into(),
-            mapper_name: "2fa-secured-luks".into(),
-            password_helper: PasswordHelper::default(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub enum InputSalt {
     AskPassword,
     File { path: PathBuf },
@@ -104,6 +30,24 @@ impl From<&str> for InputSalt {
         } else {
             InputSalt::AskPassword
         }
+    }
+}
+
+impl FromStr for InputSalt {
+    type Err = Fido2LuksError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(s))
+    }
+}
+
+impl fmt::Display for InputSalt {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.write_str(&match self {
+            InputSalt::AskPassword => "ask".to_string(),
+            InputSalt::File { path } => path.display().to_string(),
+            InputSalt::Both { path } => ["ask", path.display().to_string().as_str()].join(" + "),
+        })
     }
 }
 
@@ -140,7 +84,7 @@ impl InputSalt {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone)]
 pub enum PasswordHelper {
     Script(String),
     Systemd,
@@ -149,7 +93,10 @@ pub enum PasswordHelper {
 
 impl Default for PasswordHelper {
     fn default() -> Self {
-        PasswordHelper::Script("/usr/bin/systemd-ask-password --no-tty 'Please enter second factor for LUKS disk encryption!'".into())
+        PasswordHelper::Script(
+            "/usr/bin/systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
+                .into(),
+        )
     }
 }
 
@@ -159,6 +106,24 @@ impl From<&str> for PasswordHelper {
             "stdin" => PasswordHelper::Stdin,
             s => PasswordHelper::Script(s.into()),
         }
+    }
+}
+
+impl FromStr for PasswordHelper {
+    type Err = Fido2LuksError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self::from(s))
+    }
+}
+
+impl fmt::Display for PasswordHelper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        f.write_str(&match self {
+            PasswordHelper::Stdin => "stdin".to_string(),
+            PasswordHelper::Systemd => "systemd".to_string(),
+            PasswordHelper::Script(path) => path.clone(),
+        })
     }
 }
 

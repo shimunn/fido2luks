@@ -1,5 +1,5 @@
 use ctap::FidoError;
-use std::{fmt, io};
+use std::io;
 
 pub type Fido2LuksResult<T> = Result<T, Fido2LuksError>;
 
@@ -18,18 +18,9 @@ pub enum Fido2LuksError {
     #[fail(display = "no authenticator found, please ensure you device is plugged in")]
     IoError { cause: io::Error },
     #[fail(display = "failed to parse config, please check formatting and contents")]
-    ConfigurationError { cause: ConfigurationError },
-    #[fail(display = "the submitted secret is not applicable to this luks device")]
     WrongSecret,
     #[fail(display = "not an utf8 string")]
     StringEncodingError { cause: FromUtf8Error },
-}
-
-#[derive(Debug)]
-pub enum ConfigurationError {
-    Json(serde_json::error::Error),
-    Env(envy::Error),
-    MissingField(String),
 }
 
 #[derive(Debug, Fail)]
@@ -38,22 +29,6 @@ pub enum AskPassError {
     IO(io::Error),
     #[fail(display = "provided passwords don't match")]
     Mismatch,
-}
-
-impl From<serde_json::error::Error> for Fido2LuksError {
-    fn from(e: serde_json::error::Error) -> Self {
-        Fido2LuksError::ConfigurationError {
-            cause: ConfigurationError::Json(e),
-        }
-    }
-}
-
-impl From<envy::Error> for Fido2LuksError {
-    fn from(e: envy::Error) -> Self {
-        Fido2LuksError::ConfigurationError {
-            cause: ConfigurationError::Env(e),
-        }
-    }
 }
 
 use std::string::FromUtf8Error;

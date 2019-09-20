@@ -3,81 +3,14 @@ use crate::*;
 
 use cryptsetup_rs as luks;
 use cryptsetup_rs::api::{CryptDeviceHandle, CryptDeviceOpenBuilder, Luks1Params};
-use cryptsetup_rs::{Luks1CryptDevice, CryptDevice};
+use cryptsetup_rs::{CryptDevice, Luks1CryptDevice};
+
 use libcryptsetup_sys::crypt_keyslot_info;
-use ctap;
-use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
-use ctap::FidoDevice;
+use structopt::StructOpt;
 
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
-use std::thread;
-use std::time::Duration;
-
-pub fn setup() -> Fido2LuksResult<()> {
-    while !authenticator_connected()? {
-        eprintln!("Please connect your authenticator");
-        for _ in 0..3 {
-            thread::sleep(Duration::from_secs(1));
-            if authenticator_connected()? {
-                break;
-            }
-        }
-    }
-
-    let mut config = Config::default();
-
-    let save_config = |c: &Config| {
-        File::create("fido2luks.json")
-            .expect("Failed to save config")
-            .write_all(serde_json::to_string_pretty(c).unwrap().as_bytes())
-            .expect("Failed to save config");
-    };
-
-    fn ask_bool(q: &str) -> bool {
-        ask_str(&format!("{} (y/n)", q)).expect("Failed to read from stdin") == "y"
-    }
-
-    println!("1. Generating a credential");
-    let mut ccred: Option<FidoHmacCredential> = None;
-    for di in ctap::get_devices().expect("Failed to query USB for 2fa devices") {
-        let mut dev = FidoDevice::new(&di).expect("Failed to open 2fa device");
-        match dev.make_hmac_credential() {
-            Ok(cred) => {
-                ccred = Some(cred);
-                break;
-            }
-            Err(_e) => println!("Failed to to obtain credential trying next device(if applicable)"),
-        }
-    }
-    config.credential_id = hex::encode(ccred.expect("No credential could be obtained").id);
-    save_config(&config);
-
-    loop {
-        let device = ask_str("Path to your luks device: ").expect("Failed to read from stdin");;
-        if Path::new(&device).exists()
-            || ask_bool(&format!("{} does not exist, save anyway?", device))
-        {
-            config.device = device.into();
-            break;
-        }
-    }
-
-    save_config(&config);
-
-    config.mapper_name = ask_str("Name for decrypted disk: ").expect("Failed to read from stdin");;
-
-    save_config(&config);
-
-    println!("Config saved to: fido2luks.json");
-
-    //let slot = add_key_to_luks(&config).expect("Failed to add key to device");
-
-    //println!("Added key to slot: {}", slot);
-
-    Ok(())
-}
+use std::process::exit;
 
 pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> Fido2LuksResult<u8> {
     fn offer_format(
@@ -116,8 +49,12 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
     handle.set_iteration_time(50);
     let slot = handle.add_keyslot(secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
     if exclusive {
-        for old_slot in  0..8u8 {
-            if old_slot != slot &&  (handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE || handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE_LAST)  {
+        for old_slot in 0..8u8 {
+            if old_slot != slot
+                && (handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE
+                    || handle.keyslot_status(old_slot.into())
+                        == crypt_keyslot_info::CRYPT_SLOT_ACTIVE_LAST)
+            {
                 handle.destroy_keyslot(old_slot)?;
             }
         }
@@ -127,4 +64,143 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
 
 pub fn authenticator_connected() -> Fido2LuksResult<bool> {
     Ok(!device::get_devices()?.is_empty())
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Args {
+    /// Request passwords via Stdin instead of using the password helper
+    #[structopt(short = "i", long = "interactive")]
+    pub interactive: bool,
+    #[structopt(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Debug, StructOpt, Clone)]
+pub struct SecretGeneration {
+    /// FIDO credential id, generate using fido2luks credential
+    #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
+    pub credential_id: String,
+    /// Salt for secret generation, defaults to Password
+    #[structopt(name = "salt", env = "FIDO2LUKS_SALT", default_value = "Ask")]
+    pub salt: InputSalt,
+    /// Script used to obtain passwords, overridden by --interactive flag
+    #[structopt(
+        name = "password-helper",
+        env = "FIDO2LUKS_PASSWORD_HELPER",
+        default_value = "/usr/bin/systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
+    )]
+    pub password_helper: PasswordHelper,
+}
+
+impl SecretGeneration {
+    pub fn patch(&self, args: &Args) -> Self {
+        let mut me = self.clone();
+        if args.interactive {
+            me.password_helper = PasswordHelper::Stdin;
+        }
+        me
+    }
+
+    pub fn obtain_secret(&self) -> Fido2LuksResult<[u8; 32]> {
+        let salt = self.salt.obtain(&self.password_helper)?;
+        Ok(assemble_secret(
+            &perform_challenge(&self.credential_id, &salt)?,
+            &salt,
+        ))
+    }
+}
+
+#[derive(Debug, StructOpt)]
+pub enum Command {
+    #[structopt(name = "print-secret")]
+    PrintSecret {
+        /// Prints the secret as binary instead of hex encoded
+        #[structopt(short = "b", long = "bin")]
+        binary: bool,
+        #[structopt(flatten)]
+        secret_gen: SecretGeneration,
+    },
+    /// Adds a generated key to the specified LUKS device
+    #[structopt(name = "add-key")]
+    AddKey {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        /// Will wipe all other keys
+        #[structopt(short = "e", long = "exclusive")]
+        exclusive: bool,
+        #[structopt(flatten)]
+        secret_gen: SecretGeneration,
+    },
+    /// Open the LUKS device
+    #[structopt(name = "open")]
+    Open {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
+        name: String,
+        #[structopt(flatten)]
+        secret_gen: SecretGeneration,
+    },
+    /// Generate a new FIDO credential
+    #[structopt(name = "credential")]
+    Credential,
+    /// Check if an authenticator is connected
+    #[structopt(name = "connected")]
+    Connected,
+}
+
+pub fn parse_cmdline() -> Args {
+    Args::from_args()
+}
+
+pub fn run_cli() -> Fido2LuksResult<()> {
+    let args = parse_cmdline();
+    match &args.command {
+        Command::Credential => {
+            let cred = make_credential_id()?;
+            println!("{}", hex::encode(&cred.id));
+            Ok(())
+        }
+        Command::PrintSecret {
+            binary,
+            ref secret_gen,
+        } => {
+            let secret = secret_gen.patch(&args).obtain_secret()?;
+            if *binary {
+                io::stdout().write(&secret[..])?;
+            } else {
+                io::stdout().write(hex::encode(&secret[..]).as_bytes())?;
+            }
+            Ok(io::stdout().flush()?)
+        }
+        Command::AddKey {
+            device,
+            exclusive,
+            ref secret_gen,
+        } => {
+            let secret = secret_gen.patch(&args).obtain_secret()?;
+            let slot = add_key_to_luks(device.clone(), &secret, *exclusive)?;
+            println!(
+                "Added to key to device {}, slot: {}",
+                device.display(),
+                slot
+            );
+            Ok(())
+        }
+        Command::Open {
+            device,
+            name,
+            ref secret_gen,
+        } => {
+            let secret = secret_gen.patch(&args).obtain_secret()?;
+            open_container(&device, &name, &secret)
+        }
+        Command::Connected => match get_devices() {
+            Ok(ref devs) if !devs.is_empty() => {
+                println!("Found {} devices", devs.len());
+                Ok(())
+            }
+            _ => exit(1),
+        },
+    }
 }

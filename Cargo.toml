@@ -6,7 +6,10 @@ edition = "2018"
 
 [dependencies]
 ctap = { git = "https://github.com/shimunn/ctap.git", branch = "hmac_ext" }
-cryptsetup-rs = "0.2.0"
+#cryptsetup-rs = "0.2.0"
+cryptsetup-rs = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "destroy" }
+libcryptsetup-sys = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "destroy" }
+
 hex = "0.3.2"
 rust-crypto = "0.2.36"
 failure = "0.1.5"
@@ -15,7 +18,6 @@ serde = "1.0.100"
 serde_json = "1.0.40"
 rpassword = "4.0.1"
 envy = "0.4.0"
-
 
 [profile.release]
 lto = true

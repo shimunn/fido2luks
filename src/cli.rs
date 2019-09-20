@@ -4,6 +4,7 @@ use crate::*;
 use cryptsetup_rs as luks;
 use cryptsetup_rs::api::{CryptDeviceHandle, CryptDeviceOpenBuilder, Luks1Params};
 use cryptsetup_rs::{Luks1CryptDevice, CryptDevice};
+use libcryptsetup_sys::crypt_keyslot_info;
 use ctap;
 use ctap::extensions::hmac::{FidoHmacCredential, HmacExtension};
 use ctap::FidoDevice;
@@ -78,7 +79,7 @@ pub fn setup() -> Fido2LuksResult<()> {
     Ok(())
 }
 
-pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32]) -> Fido2LuksResult<u8> {
+pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> Fido2LuksResult<u8> {
     fn offer_format(
         _dev: CryptDeviceOpenBuilder,
     ) -> Fido2LuksResult<CryptDeviceHandle<Luks1Params>> {
@@ -114,6 +115,13 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32]) -> Fido2LuksResult<u8
     };
     handle.set_iteration_time(50);
     let slot = handle.add_keyslot(secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
+    if exclusive {
+        for old_slot in  0..8u8 {
+            if old_slot != slot &&  (handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE || handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE_LAST)  {
+                handle.destroy_keyslot(old_slot)?;
+            }
+        }
+    }
     Ok(slot)
 }
 

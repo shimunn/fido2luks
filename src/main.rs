@@ -143,7 +143,7 @@ fn main() -> Fido2LuksResult<()> {
             conf.device = conf.device.or(Some(device.to_string()));
             let slot = add_key_to_luks(
                 conf.device.as_ref().unwrap().into(),
-                &secret_from_env_config(&conf)?,
+                &secret_from_env_config(&conf)?, true
             )?;
             println!("Added to key to device {}, slot: {}", device, slot);
             Ok(())

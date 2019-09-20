@@ -9,7 +9,8 @@ XXD="/usr/bin/xxd"
 MOUNT=$(command -v mount)
 UMOUNT=$(command -v umount)
 
-TIMEOUT=30
+TIMEOUT=120
+CON_MSG="Please connect your authenicator"
 
 generate_service () {
         local credential_id=$1 target_uuid=$2 timeout=$3 sd_dir=${4:-$NORMAL_DIR}
@@ -23,7 +24,7 @@ generate_service () {
                 printf -- "[Unit]"
                 printf -- "\nDescription=%s" "2fa for luks"
                 printf -- "\nBindsTo=%s" "$target_dev"
-                printf -- "\nAfter=%s cryptsetup-pre.target systemd-journald.socket" "$target_dev" #TODO: create service to wait or authenicator
+                printf -- "\nAfter=%s cryptsetup-pre.target systemd-journald.socket" "$target_dev"
                 printf -- "\nBefore=%s umount.target luks-2fa.target" "$crypto_target_service"
                 printf -- "\nConflicts=umount.target"
                 printf -- "\nDefaultDependencies=no"
@@ -36,11 +37,10 @@ generate_service () {
                 printf -- "\nEnvironment=FIDO2LUKS_SALT='%s'" "Ask"
                 printf -- "\nEnvironment=FIDO2LUKS_PASSWORD_HELPER='%s'" "/usr/bin/systemd-ask-password \"Disk 2fa password\""
                 printf -- "\nKeyringMode=%s" "shared"
-                #printf -- "\nExecStart=${CRYPTSETUP} attach 'luks-%s' '/dev/disk/by-uuid/%s' 'none'" "$keyfile_uuid" "$keyfile_uuid"   #LUKS on USB
-                #printf -- "\nExecStart=${MOUNT} '/dev/mapper/luks-%s' %s" "$keyfile_uuid" "$keyfile_mountpoint"                        #Mount keyfile
+		printf -- "\nExecStartPre=-/usr/bin/plymouth display-message --text ${CON_MSG}"
+		printf -- "\nExecStartPre=-/bin/bash -c \"while ! ${FIDO2LUKS} connected; do /usr/bin/sleep 1; done\""
+		printf -- "\nExecStartPre=-/usr/bin/plymouth hide-message --text ${CON_MSG}"
                 printf -- "\nExecStart=/bin/bash -c \"${FIDO2LUKS} print-secret --bin | ${CRYPTSETUP} attach 'luks-%s' '/dev/disk/by-uuid/%s' '/dev/stdin'\"" "$target_uuid" "$target_uuid"
-                #printf -- "\nExecStart=${UMOUNT} '%s'" "$keyfile_mountpoint"
-                #printf -- "\nExecStart=${CRYPTSETUP} detach 'luks-%s'" "$keyfile_uuid"
                 printf -- "\nExecStop=${CRYPTSETUP} detach 'luks-%s'" "$target_uuid"
         } > "$sd_service"
 

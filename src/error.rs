@@ -43,8 +43,10 @@ impl From<FidoError> for Fido2LuksError {
 impl From<cryptsetup_rs::device::Error> for Fido2LuksError {
     fn from(e: cryptsetup_rs::device::Error) -> Self {
         match e {
-            cryptsetup_rs::device::Error::CryptsetupError(error_no) if error_no.0 == 1i32 => WrongSecret,
-            e => LuksError { cause: e }
+            cryptsetup_rs::device::Error::CryptsetupError(error_no) if error_no.0 == 1i32 => {
+                WrongSecret
+            }
+            e => LuksError { cause: e },
         }
     }
 }

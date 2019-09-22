@@ -12,3 +12,23 @@ steps:
    commands:
     - apt update && apt install -y libcryptsetup-dev libkeyutils-dev
     - cargo test
+
+ - name: build
+   image: rust:1.37.0
+   commands:
+    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev
+    - cargo install -f --path . --root .
+   when:
+    event: tag
+ - name: publish
+   image: plugins/github-release
+   settings:
+     api_key:
+      from_secret: github_release
+     files:
+      - bin/fido2luks
+     checksum:
+      - md5
+      - sha256
+   when:
+    event: tag    

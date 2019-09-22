@@ -26,7 +26,7 @@ set -a
 . fido2luks.conf
 
 #Repeat for each luks volume
-sudo -E fido2luks -i addkey /dev/disk/by-uuid/<DISK_UUID>
+sudo -E fido2luks -i add-key /dev/disk/by-uuid/<DISK_UUID>
 
 #Test(only works if the luks container isn't active)
 sudo -E fido2luks -i open /dev/disk/by-uuid/<DISK_UUID> luks-<DISK_UUID>

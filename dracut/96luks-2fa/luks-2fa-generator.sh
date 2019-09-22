@@ -1,11 +1,10 @@
 #!/bin/bash
 
-NORMAL_DIR="/tmp//run/systemd/system"
+NORMAL_DIR="/run/systemd/system"
 LUKS_2FA_WANTS="/etc/systemd/system/luks-2fa.target.wants"
 
 CRYPTSETUP="/usr/lib/systemd/systemd-cryptsetup"
 FIDO2LUKS="/usr/bin/fido2luks"
-XXD="/usr/bin/xxd"
 MOUNT=$(command -v mount)
 UMOUNT=$(command -v umount)
 
@@ -35,11 +34,11 @@ generate_service () {
                 printf -- "\nRemainAfterExit=yes"
                 printf -- "\nEnvironment=FIDO2LUKS_CREDENTIAL_ID='%s'" "$credential_id"
                 printf -- "\nEnvironment=FIDO2LUKS_SALT='%s'" "Ask"
-                printf -- "\nEnvironment=FIDO2LUKS_PASSWORD_HELPER='%s'" "/usr/bin/systemd-ask-password \"Disk 2fa password\""
+                printf -- "\nEnvironment=FIDO2LUKS_PASSWORD_HELPER='%s'" "/usr/bin/systemd-ask-password Disk 2fa password"
                 printf -- "\nKeyringMode=%s" "shared"
-		printf -- "\nExecStartPre=-/usr/bin/plymouth display-message --text ${CON_MSG}"
+		printf -- "\nExecStartPre=-/usr/bin/plymouth display-message --text \"${CON_MSG}\""
 		printf -- "\nExecStartPre=-/bin/bash -c \"while ! ${FIDO2LUKS} connected; do /usr/bin/sleep 1; done\""
-		printf -- "\nExecStartPre=-/usr/bin/plymouth hide-message --text ${CON_MSG}"
+		printf -- "\nExecStartPre=-/usr/bin/plymouth hide-message --text \"${CON_MSG}\""
                 printf -- "\nExecStart=/bin/bash -c \"${FIDO2LUKS} print-secret --bin | ${CRYPTSETUP} attach 'luks-%s' '/dev/disk/by-uuid/%s' '/dev/stdin'\"" "$target_uuid" "$target_uuid"
                 printf -- "\nExecStop=${CRYPTSETUP} detach 'luks-%s'" "$target_uuid"
         } > "$sd_service"
@@ -50,7 +49,7 @@ generate_service () {
                 printf -- "\nConditionPathExists=!/dev/mapper/luks-%s" "$target_uuid"
         } > "${sd_dir}/${crypto_target_service}.d/drop-in.conf"
 
-       # ln -sf "$sd_service" "${LUKS_2FA_WANTS}/"
+        ln -sf "$sd_service" "${LUKS_2FA_WANTS}/"
 }
 
 parse_cmdline () {
@@ -81,5 +80,4 @@ generate_from_cmdline () {
         done
 }
 
-#generate_from_cmdline
-generate_service CRED UUID $timeout
+generate_from_cmdline

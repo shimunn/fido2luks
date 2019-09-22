@@ -12,7 +12,12 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::process::exit;
 
-pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> Fido2LuksResult<u8> {
+pub fn add_key_to_luks(
+    device: PathBuf,
+    secret: &[u8; 32],
+    old_secret: Box<dyn Fn() -> Fido2LuksResult<Vec<u8>>>,
+    exclusive: bool,
+) -> Fido2LuksResult<u8> {
     fn offer_format(
         _dev: CryptDeviceOpenBuilder,
     ) -> Fido2LuksResult<CryptDeviceHandle<Luks1Params>> {
@@ -21,16 +26,7 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
     let dev =
         || -> luks::device::Result<CryptDeviceOpenBuilder> { luks::open(&device.canonicalize()?) };
 
-    let prev_key_info = util::read_password(
-        "Please enter your current password or path to a keyfile in order to add a new key",
-        false,
-    )?;
-
-    let prev_key = match prev_key_info.as_ref() {
-        "" => None,
-        keyfile if PathBuf::from(keyfile).exists() => Some(util::read_keyfile(keyfile)?),
-        password => Some(Vec::from(password.as_bytes())),
-    };
+    let prev_key = old_secret()?;
 
     let mut handle = match dev()?.luks1() {
         Ok(handle) => handle,
@@ -43,7 +39,7 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
         err => err?,
     };
     handle.set_iteration_time(50);
-    let slot = handle.add_keyslot(secret, prev_key.as_ref().map(|b| b.as_slice()), None)?;
+    let slot = handle.add_keyslot(secret, Some(prev_key.as_slice()), None)?;
     if exclusive {
         for old_slot in 0..8u8 {
             if old_slot != slot
@@ -141,6 +137,9 @@ pub enum Command {
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
+        /// Use a keyfile instead of a password
+        #[structopt(short = "d", long = "keyfile")]
+        keyfile: Option<PathBuf>,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
     },
@@ -205,10 +204,22 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::AddKey {
             device,
             exclusive,
+            keyfile,
             ref secret_gen,
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
-            let slot = add_key_to_luks(device.clone(), &secret, *exclusive)?;
+            let slot = add_key_to_luks(
+                device.clone(),
+                &secret,
+                if let Some(keyfile) = keyfile.clone() {
+                    Box::new(move || util::read_keyfile(keyfile.clone()))
+                } else {
+                    Box::new(|| {
+                        util::read_password("Old password", true).map(|p| p.as_bytes().to_vec())
+                    })
+                },
+                *exclusive,
+            )?;
             println!(
                 "Added to key to device {}, slot: {}",
                 device.display(),

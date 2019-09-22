@@ -21,18 +21,14 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
     let dev =
         || -> luks::device::Result<CryptDeviceOpenBuilder> { luks::open(&device.canonicalize()?) };
 
-    let prev_key_info = rpassword::read_password_from_tty(Some(
-        "Please enter your current password or path to a keyfile in order to add a new key: ",
-    ))?;
+    let prev_key_info = util::read_password(
+        "Please enter your current password or path to a keyfile in order to add a new key",
+        false,
+    )?;
 
     let prev_key = match prev_key_info.as_ref() {
         "" => None,
-        keyfile if PathBuf::from(keyfile).exists() => {
-            let mut f = File::open(keyfile)?;
-            let mut key = Vec::new();
-            f.read_to_end(&mut key)?;
-            Some(key)
-        }
+        keyfile if PathBuf::from(keyfile).exists() => Some(util::read_keyfile(keyfile)?),
         password => Some(Vec::from(password.as_bytes())),
     };
 
@@ -59,6 +55,23 @@ pub fn add_key_to_luks(device: PathBuf, secret: &[u8; 32], exclusive: bool) -> F
             }
         }
     }
+    Ok(slot)
+}
+
+pub fn add_password_to_luks(
+    device: PathBuf,
+    secret: &[u8; 32],
+    new_secret: Box<dyn Fn() -> Fido2LuksResult<Vec<u8>>>,
+    add_password: bool,
+) -> Fido2LuksResult<u8> {
+    let dev = luks::open(&device.canonicalize()?)?;
+    let mut handle = dev.luks1()?;
+    let prev_slot = if add_password {
+        Some(handle.add_keyslot(&secret[..], Some(&secret[..]), None)?)
+    } else {
+        None
+    };
+    let slot = handle.update_keyslot(&new_secret()?[..], &secret[..], prev_slot)?;
     Ok(slot)
 }
 
@@ -131,6 +144,21 @@ pub enum Command {
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
     },
+
+    /// Replace a previously added key with a password
+    #[structopt(name = "replace-key")]
+    ReplaceKey {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        /// Add the password and keep the key
+        #[structopt(short = "a", long = "add-password")]
+        add_password: bool,
+        /// Use a keyfile instead of a password
+        #[structopt(short = "d", long = "keyfile")]
+        keyfile: Option<PathBuf>,
+        #[structopt(flatten)]
+        secret_gen: SecretGeneration,
+    },
     /// Open the LUKS device
     #[structopt(name = "open")]
     Open {
@@ -183,6 +211,32 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             let slot = add_key_to_luks(device.clone(), &secret, *exclusive)?;
             println!(
                 "Added to key to device {}, slot: {}",
+                device.display(),
+                slot
+            );
+            Ok(())
+        }
+        Command::ReplaceKey {
+            device,
+            add_password,
+            keyfile,
+            ref secret_gen,
+        } => {
+            let secret = secret_gen.patch(&args).obtain_secret()?;
+            let slot = add_password_to_luks(
+                device.clone(),
+                &secret,
+                if let Some(keyfile) = keyfile.clone() {
+                    Box::new(move || util::read_keyfile(keyfile.clone()))
+                } else {
+                    Box::new(|| {
+                        util::read_password("Password to add", true).map(|p| p.as_bytes().to_vec())
+                    })
+                },
+                *add_password,
+            )?;
+            println!(
+                "Added to password to device {}, slot: {}",
                 device.display(),
                 slot
             );

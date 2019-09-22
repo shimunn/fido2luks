@@ -7,8 +7,8 @@ edition = "2018"
 [dependencies]
 ctap = { git = "https://github.com/shimunn/ctap.git", branch = "hmac_ext" }
 #cryptsetup-rs = "0.2.0"
-cryptsetup-rs = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "destroy" }
-libcryptsetup-sys = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "destroy" }
+cryptsetup-rs = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
+libcryptsetup-sys = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
 
 hex = "0.3.2"
 rust-crypto = "0.2.36"

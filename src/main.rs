@@ -7,9 +7,7 @@ use crate::error::*;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use cryptsetup_rs as luks;
-
 use cryptsetup_rs::Luks1CryptDevice;
-use ctap;
 
 use std::io::{self};
 use std::path::PathBuf;

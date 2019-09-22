@@ -17,7 +17,7 @@ pub enum Fido2LuksError {
     LuksError { cause: cryptsetup_rs::device::Error },
     #[fail(display = "no authenticator found, please ensure you device is plugged in")]
     IoError { cause: io::Error },
-    #[fail(display = "failed to parse config, please check formatting and contents")]
+    #[fail(display = "supplied secret isn't valid for this device")]
     WrongSecret,
     #[fail(display = "not an utf8 string")]
     StringEncodingError { cause: FromUtf8Error },
@@ -42,7 +42,10 @@ impl From<FidoError> for Fido2LuksError {
 
 impl From<cryptsetup_rs::device::Error> for Fido2LuksError {
     fn from(e: cryptsetup_rs::device::Error) -> Self {
-        LuksError { cause: e }
+        match e {
+            cryptsetup_rs::device::Error::CryptsetupError(error_no) if error_no.0 == 1i32 => WrongSecret,
+            e => LuksError { cause: e }
+        }
     }
 }
 

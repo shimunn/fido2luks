@@ -8,8 +8,7 @@ use cryptsetup_rs::{CryptDevice, Luks1CryptDevice};
 use libcryptsetup_sys::crypt_keyslot_info;
 use structopt::StructOpt;
 
-use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Write};
 use std::process::exit;
 
 pub fn add_key_to_luks(

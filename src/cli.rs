@@ -154,6 +154,7 @@ pub fn parse_cmdline() -> Args {
 }
 
 pub fn run_cli() -> Fido2LuksResult<()> {
+    let mut stdout = io::stdout();
     let args = parse_cmdline();
     match &args.command {
         Command::Credential => {
@@ -167,11 +168,11 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
             if *binary {
-                io::stdout().write(&secret[..])?;
+                stdout.write(&secret[..])?;
             } else {
-                io::stdout().write(hex::encode(&secret[..]).as_bytes())?;
+                stdout.write(hex::encode(&secret[..]).as_bytes())?;
             }
-            Ok(io::stdout().flush()?)
+            Ok(stdout.flush()?)
         }
         Command::AddKey {
             device,

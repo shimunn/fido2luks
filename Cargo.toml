@@ -1,14 +1,16 @@
 [package]
 name = "fido2luks"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
+description = "Decrypt your LUKS partition using a FIDO2 compatible authenticator"
+license = "GPL v3"
+repository = "https://github.com/shimunn/fido2luks"
 
 [dependencies]
-ctap = { git = "https://github.com/shimunn/ctap.git", branch = "hmac_ext" }
-#cryptsetup-rs = "0.2.0"
-cryptsetup-rs = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
-libcryptsetup-sys = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
+ctap = "0.1.0"
+cryptsetup-rs = "0.2.0"
+libcryptsetup-sys = "0.1.1"
 
 hex = "0.3.2"
 rust-crypto = "0.2.36"
@@ -16,9 +18,21 @@ failure = "0.1.5"
 rpassword = "4.0.1"
 structopt = "0.3.2"
 
+[patch.crates-io]
+#Until https://github.com/solidninja/cryptsetup-rs/pull/2 merges 
+cryptsetup-rs = { path = "./patch/cryptsetup-rs" }
+libcryptsetup-sys = { path = "./patch/cryptsetup-rs/libcryptsetup-sys" }
+ctap = { path = "./patch/ctap" }
+
 [profile.release]
 lto = true
 opt-level = 'z'
 panic = 'abort'
 incremental = false
 overflow-checks = false
+
+[package.metadata.rpm]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+fido2luks = { path = "/usr/bin/fido2luks" }

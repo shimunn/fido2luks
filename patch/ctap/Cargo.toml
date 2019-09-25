@@ -1,0 +1,21 @@
+[package]
+name = "ctap"
+description = "A Rust implementation of the FIDO2 CTAP protocol"
+version = "0.1.0"
+license = "Apache-2.0/MIT"
+homepage = "https://github.com/ArdaXi/ctap"
+repository = "https://github.com/ArdaXi/ctap"
+authors = ["Arda Xi <arda@ardaxi.com>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.6"
+failure = "0.1"
+failure_derive = "0.1"
+num-traits = "0.2"
+num-derive = "0.2"
+byteorder = "1"
+cbor-codec = "0.7"
+ring = "0.13"
+untrusted = "0.6"
+rust-crypto = "0.2"

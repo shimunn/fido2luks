@@ -1,0 +1,18 @@
+[package]
+name = "blkid-rs"
+version = "0.1.1"
+authors = ["Vladimir Lushnikov <vladimir@solidninja.is>"]
+description = "Rust implementation of blkid for LUKS volumes"
+license = "LGPL-3.0"
+homepage = "https://github.com/solidninja/libcryptset-rs"
+
+[lib]
+name = "blkid_rs"
+
+[dependencies]
+byteorder = "1.1"
+uuid = "0.6"
+
+[dev-dependencies]
+env_logger = "0.4"
+tempdir = "0.3"

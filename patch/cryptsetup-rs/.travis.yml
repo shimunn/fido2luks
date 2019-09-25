@@ -1,0 +1,22 @@
+language: rust
+rust:
+  - stable
+  - beta
+  - nightly
+matrix:
+  allow_failures:
+    - rust: nightly
+sudo: required
+dist: trusty
+os:
+  - linux
+script:
+  - cargo build --all-targets --verbose
+  - sudo /bin/sh -c "PATH=/home/travis/.cargo/bin:$PATH LD_LIBRARY_PATH=/home/travis/.cargo/lib cargo test --verbose"
+addons:
+  apt:
+    packages:
+      - libcryptsetup-dev
+notifications:
+  email:
+    on_success: never

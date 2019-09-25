@@ -1,0 +1,32 @@
+[package]
+authors = ["Vladimir Lushnikov <vladimir@solidninja.is>"]
+description = "Rust wrapper around the libcryptsetup library, allowing manipulation of LUKS devices in Linux"
+homepage = "https://github.com/solidninja/cryptsetup-rs"
+license = "LGPL-3.0"
+name = "cryptsetup-rs"
+version = "0.2.0"
+
+[dependencies]
+errno = "0.2.3"
+libc = "0.2.42"
+log = "0.4.2"
+
+[dependencies.blkid-rs]
+path = "blkid-rs"
+version = "0.1.1"
+
+[dependencies.libcryptsetup-sys]
+path = "libcryptsetup-sys"
+version = "0.1.1"
+
+[dependencies.uuid]
+features = ["v4"]
+version = "0.6.5"
+
+[dev-dependencies]
+env_logger = "0.5.10"
+expectest = "0.10.0"
+tempdir = "0.3.7"
+
+[lib]
+name = "cryptsetup_rs"

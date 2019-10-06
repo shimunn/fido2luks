@@ -15,6 +15,7 @@ help:
 install:
 	cp ${MODULE_CONF_D}/${MODULE_CONF} ${DRACUT_CONF_D}/
 	cp -r ${MODULE_DIR} ${DRACUT_MODULES_D}/
+	cp ${MODULE_DIR}/fido2luks.conf /etc/fido2luks.conf
 	dracut -fv
 clean:
 	rm ${DRACUT_CONF_D}/${MODULE_CONF}

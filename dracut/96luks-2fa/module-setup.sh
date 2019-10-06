@@ -18,7 +18,7 @@ depends () {
 install () {
         inst "$moddir/luks-2fa-generator.sh" "/etc/systemd/system-generators/luks-2fa-generator.sh"
         inst_simple "/usr/bin/fido2luks" "/usr/bin/fido2luks"
-        inst_simple "$moddir/luks-2fa.conf" "/etc/luks-2fa.conf"
+        inst_simple "/etc/fido2luks.conf" "/etc/fido2luks.conf"
         inst "$systemdutildir/systemd-cryptsetup"
         mkdir -p "$initdir/luks-2fa"
 

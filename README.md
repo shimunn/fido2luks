@@ -20,10 +20,10 @@ git clone https://github.com/shimunn/fido2luks.git && cd fido2luks
 #Alternativly cargo build --release && sudo cp target/release/fido2luks /usr/bin/
 CARGO_INSTALL_ROOT=/usr sudo -E cargo install -f --path .
 
-echo FIDO2LUKS_CREDENTIAL_ID=$(fido2luks credential) >> fido2luks.conf
+echo FIDO2LUKS_CREDENTIAL_ID=$(fido2luks credential) >> dracut/96luks-2fa/fido2luks.conf
 
 set -a
-. fido2luks.conf
+. dracut/96luks-2fa/fido2luks.conf
 
 #Repeat for each luks volume
 sudo -E fido2luks -i add-key /dev/disk/by-uuid/<DISK_UUID>
@@ -56,7 +56,7 @@ I'd also recommend to copy the executable onto /boot so that it is accessible in
 ```
 mkdir /boot/fido2luks/
 cp /usr/bin/fido2luks /boot/fido2luks/
-cp fido2luks.conf /boot/fido2luks/
+cp /etc/fido2luks.conf /boot/fido2luks/
 ```
 
 ## Test

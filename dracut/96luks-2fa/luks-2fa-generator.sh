@@ -32,7 +32,7 @@ generate_service () {
                 printf -- "\n\n[Service]"
                 printf -- "\nType=oneshot"
                 printf -- "\nRemainAfterExit=yes"
-                printf -- "\nEnvironmentFile='%s'" "/etc/luks-2fa.conf"
+                printf -- "\nEnvironmentFile=%s" "/etc/fido2luks.conf"
                 printf -- "\nEnvironment=FIDO2LUKS_CREDENTIAL_ID='%s'" "$credential_id"
                 printf -- "\nKeyringMode=%s" "shared"
 		            printf -- "\nExecStartPre=-/usr/bin/plymouth display-message --text \"${CON_MSG}\""

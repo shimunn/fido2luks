@@ -94,7 +94,12 @@ pub struct SecretGeneration {
     ///  - ask              : Promt user using password helper{n}
     ///  - file:<PATH>      : Will read <FILE>{n}
     ///  - string:<STRING>  : Will use <STRING>, which will be handled like a password provided to the 'ask' option{n}
-    #[structopt(name = "salt", env = "FIDO2LUKS_SALT", default_value = "ask")]
+    #[structopt(
+        name = "salt",
+        long = "salt",
+        env = "FIDO2LUKS_SALT",
+        default_value = "ask"
+    )]
     pub salt: InputSalt,
     /// Script used to obtain passwords, overridden by --interactive flag
     #[structopt(

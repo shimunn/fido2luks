@@ -10,11 +10,11 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InputSalt {
     AskPassword,
+    String(String),
     File { path: PathBuf },
-    Both { path: PathBuf },
 }
 
 impl Default for InputSalt {
@@ -25,10 +25,14 @@ impl Default for InputSalt {
 
 impl From<&str> for InputSalt {
     fn from(s: &str) -> Self {
-        if PathBuf::from(s).exists() && s != "Ask" {
-            InputSalt::File { path: s.into() }
-        } else {
-            InputSalt::AskPassword
+        let mut parts = s.split(":").into_iter();
+        match parts.next() {
+            Some("ask") | Some("Ask") => InputSalt::AskPassword,
+            Some("file") => InputSalt::File {
+                path: parts.collect::<Vec<_>>().join(":").into(),
+            },
+            Some("string") => InputSalt::String(parts.collect::<Vec<_>>().join(":")),
+            _ => Self::default(),
         }
     }
 }
@@ -45,8 +49,8 @@ impl fmt::Display for InputSalt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.write_str(&match self {
             InputSalt::AskPassword => "ask".to_string(),
-            InputSalt::File { path } => path.display().to_string(),
-            InputSalt::Both { path } => ["ask", path.display().to_string().as_str()].join(" + "),
+            InputSalt::String(s) => ["string", s].join(":"),
+            InputSalt::File { path } => ["file", path.display().to_string().as_str()].join(":"),
         })
     }
 }
@@ -73,10 +77,7 @@ impl InputSalt {
             InputSalt::AskPassword => {
                 digest.input(password_helper.obtain()?.as_bytes());
             }
-            InputSalt::Both { path } => {
-                digest.input(&InputSalt::AskPassword.obtain(password_helper)?);
-                digest.input(&InputSalt::File { path: path.clone() }.obtain(password_helper)?)
-            }
+            InputSalt::String(s) => digest.input(s.as_bytes()),
         }
         let mut salt = [0u8; 32];
         digest.result(&mut salt);
@@ -146,5 +147,27 @@ impl PasswordHelper {
                 Ok(String::from_utf8(password)?.trim().to_owned())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn input_salt_from_str() {
+        assert_eq!(
+            "file:/tmp/abc".parse::<InputSalt>().unwrap(),
+            InputSalt::File {
+                path: "/tmp/abc".into()
+            }
+        );
+        assert_eq!(
+            "string:abc".parse::<InputSalt>().unwrap(),
+            InputSalt::String("abc".into())
+        );
+        assert_eq!("ask".parse::<InputSalt>().unwrap(), InputSalt::AskPassword);
+        assert_eq!("lol".parse::<InputSalt>().unwrap(), InputSalt::default());
     }
 }

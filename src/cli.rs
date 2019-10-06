@@ -88,8 +88,13 @@ pub struct SecretGeneration {
     /// FIDO credential id, generate using fido2luks credential
     #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
     pub credential_id: String,
-    /// Salt for secret generation, defaults to Password
-    #[structopt(name = "salt", env = "FIDO2LUKS_SALT", default_value = "Ask")]
+    /// Salt for secret generation, defaults to 'ask'
+    ///
+    /// Options:{n}
+    ///  - ask              : Promt user using password helper{n}
+    ///  - file:<PATH>      : Will read <FILE>{n}
+    ///  - string:<STRING>  : Will use <STRING>, which will be handled like a password provided to the 'ask' option{n}
+    #[structopt(name = "salt", env = "FIDO2LUKS_SALT", default_value = "ask")]
     pub salt: InputSalt,
     /// Script used to obtain passwords, overridden by --interactive flag
     #[structopt(

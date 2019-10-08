@@ -70,6 +70,23 @@ cryptsetup luksHeaderBackup /dev/disk/by-uuid/<DISK_UUID> --header-backup-file l
 fido2luks -i add-key --exclusive /dev/disk/by-uuid/<DISK_UUID>
 ```
 
+## Addtional settings
+
+### Password less
+
+Remove your previous secret as described in the next section, incase you already added one.
+
+Open `/etc/fido2luks.conf` and replace `FIDO2LUKS_SALT=Ask` with `FIDO2LUKS_SALT=string:<YOUR_RANDOM_STRING>`
+
+Import the new config into env:
+
+```
+set -a
+. /etc/fido2luks.conf
+```
+
+Then add the new secret to each device and update dracut afterwards `dracut -f`
+
 ## Removal
 
 Remove `rd.luks.2fa` from `GRUB_CMDLINE_LINUX` in /etc/default/grub

@@ -1,4 +1,4 @@
-# fido2luks
+# fido2luks [![Crates.io Version](https://img.shields.io/crates/v/fido2luks.svg)](https://crates.io/crates/fido2luks)
 
 This will allow you to unlock your luks encrypted disk with an fido2 compatible key
 

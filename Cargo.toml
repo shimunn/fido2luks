@@ -1,14 +1,24 @@
 [package]
 name = "fido2luks"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
+description = "Decrypt your LUKS partition using a FIDO2 compatible authenticator"
+documentation = "https://github.com/shimunn/fido2luks/blob/master/README.md"
+homepage = "https://github.com/shimunn/fido2luks"
+repository = "https://github.com/shimunn/fido2luks"
+readme = "README.md"
+keywords = ["luks", "fido2", "u2f"]
+categories = ["command-line-utilities"]
+license-file = "LICENSE"
+
 [dependencies]
-ctap = { git = "https://github.com/shimunn/ctap.git", branch = "hmac_ext" }
-#cryptsetup-rs = "0.2.0"
-cryptsetup-rs = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
-libcryptsetup-sys = { git = "https://github.com/shimunn/cryptsetup-rs.git", branch = "update_keyslot" }
+#ctap = "0.1.0"
+ctap_hmac = "0.1.1"
+cryptsetup-rs = "0.2.1"
+libcryptsetup-sys = "0.1.2"
+
 
 hex = "0.3.2"
 rust-crypto = "0.2.36"

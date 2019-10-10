@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate failure;
+extern crate ctap_hmac as ctap;
 use crate::cli::*;
 use crate::config::*;
 use crate::device::*;

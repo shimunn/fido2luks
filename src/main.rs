@@ -5,10 +5,9 @@ use crate::cli::*;
 use crate::config::*;
 use crate::device::*;
 use crate::error::*;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
 use cryptsetup_rs as luks;
 use cryptsetup_rs::Luks1CryptDevice;
+use ring::digest;
 
 use std::io::{self};
 use std::path::PathBuf;
@@ -26,11 +25,11 @@ fn open_container(device: &PathBuf, name: &str, secret: &[u8; 32]) -> Fido2LuksR
 }
 
 fn assemble_secret(hmac_result: &[u8], salt: &[u8]) -> [u8; 32] {
-    let mut digest = Sha256::new();
-    digest.input(salt);
-    digest.input(hmac_result);
+    let mut digest = digest::Context::new(&digest::SHA256);
+    digest.update(salt);
+    digest.update(hmac_result);
     let mut secret = [0u8; 32];
-    digest.result(&mut secret);
+    secret.as_mut().copy_from_slice(digest.finish().as_ref());
     secret
 }
 

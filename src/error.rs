@@ -23,6 +23,19 @@ pub enum Fido2LuksError {
     StringEncodingError { cause: FromUtf8Error },
 }
 
+impl Fido2LuksError {
+    pub fn exit_code(&self) -> i32 {
+        use Fido2LuksError::*;
+        match self {
+            AskPassError { .. } | KeyfileError { .. } => 2,
+            AuthenticatorError { .. } => 3,
+            NoAuthenticatorError => 4,
+            WrongSecret => 5,
+            _ => 1,
+        }
+    }
+}
+
 #[derive(Debug, Fail)]
 pub enum AskPassError {
     #[fail(display = "unable to retrieve password: {}", _0)]

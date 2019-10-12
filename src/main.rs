@@ -11,6 +11,7 @@ use ring::digest;
 
 use std::io::{self};
 use std::path::PathBuf;
+use std::process::exit;
 
 mod cli;
 mod config;
@@ -34,7 +35,16 @@ fn assemble_secret(hmac_result: &[u8], salt: &[u8]) -> [u8; 32] {
 }
 
 fn main() -> Fido2LuksResult<()> {
-    run_cli()
+    match run_cli() {
+        Err(e) => {
+            #[cfg(debug_assertions)]
+            eprintln!("{:?}", e);
+            #[cfg(not(debug_assertions))]
+            eprintln!("{}", e);
+            exit(e.exit_code())
+        }
+        _ => exit(0),
+    }
 }
 
 #[cfg(test)]

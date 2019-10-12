@@ -174,6 +174,8 @@ pub enum Command {
         device: PathBuf,
         #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
         name: String,
+        #[structopt(short = "r", long = "max-retries", default_value = "0")]
+        retries: i32,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
     },
@@ -265,10 +267,24 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::Open {
             device,
             name,
+            retries,
             ref secret_gen,
         } => {
-            let secret = secret_gen.patch(&args).obtain_secret()?;
-            open_container(&device, &name, &secret)
+            let mut retries = *retries;
+            loop {
+                let secret = secret_gen.patch(&args).obtain_secret()?;
+                match open_container(&device, &name, &secret) {
+                    Err(e) => match e {
+                        Fido2LuksError::WrongSecret if retries > 0 => {
+                            retries -= 1;
+                            eprintln!("{}", e);
+                            continue;
+                        }
+                        e => Err(e)?,
+                    },
+                    res => break res,
+                }
+            }
         }
         Command::Connected => match get_devices() {
             Ok(ref devs) if !devs.is_empty() => {

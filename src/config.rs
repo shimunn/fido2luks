@@ -1,7 +1,6 @@
 use crate::error::*;
 use crate::*;
-use crypto::digest::Digest;
-use crypto::sha2::Sha256;
+use ring::digest;
 
 use std::fmt;
 use std::fs::File;
@@ -57,7 +56,7 @@ impl fmt::Display for InputSalt {
 
 impl InputSalt {
     pub fn obtain(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<[u8; 32]> {
-        let mut digest = Sha256::new();
+        let mut digest = digest::Context::new(&digest::SHA256);
         match self {
             InputSalt::File { path } => {
                 let mut do_io = || {
@@ -65,7 +64,7 @@ impl InputSalt {
                     let mut buf = [0u8; 512];
                     loop {
                         let red = reader.read(&mut buf)?;
-                        digest.input(&buf[0..red]);
+                        digest.update(&buf[0..red]);
                         if red == 0 {
                             break;
                         }
@@ -75,12 +74,12 @@ impl InputSalt {
                 do_io().map_err(|cause| Fido2LuksError::KeyfileError { cause })?;
             }
             InputSalt::AskPassword => {
-                digest.input(password_helper.obtain()?.as_bytes());
+                digest.update(password_helper.obtain()?.as_bytes());
             }
-            InputSalt::String(s) => digest.input(s.as_bytes()),
+            InputSalt::String(s) => digest.update(s.as_bytes()),
         }
         let mut salt = [0u8; 32];
-        digest.result(&mut salt);
+        salt.as_mut().copy_from_slice(digest.finish().as_ref());
         Ok(salt)
     }
 }

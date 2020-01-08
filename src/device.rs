@@ -1,10 +1,38 @@
 use crate::error::*;
+use crate::util::sha256;
 
 use ctap::{
     self,
     extensions::hmac::{FidoHmacCredential, HmacExtension},
-    FidoDevice, FidoError, FidoErrorKind,
+    AuthenticatorOptions, FidoDevice, FidoError, FidoErrorKind, PublicKeyCredentialRpEntity,
+    PublicKeyCredentialUserEntity,
 };
+
+const RP_ID: &'static str = "fido2luks";
+
+fn authenticator_options() -> Option<AuthenticatorOptions> {
+    Some(AuthenticatorOptions {
+        uv: false, //TODO: should get this from config
+        rk: true,
+    })
+}
+
+fn authenticator_rp() -> PublicKeyCredentialRpEntity<'static> {
+    PublicKeyCredentialRpEntity {
+        id: RP_ID,
+        name: None,
+        icon: None,
+    }
+}
+
+fn authenticator_user() -> PublicKeyCredentialUserEntity<'static> {
+    PublicKeyCredentialUserEntity {
+        id: &[0u8],
+        name: "",
+        icon: None,
+        display_name: None,
+    }
+}
 
 pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
     let mut errs = Vec::new();
@@ -13,7 +41,13 @@ pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
         devs => {
             for mut dev in devs.into_iter() {
                 match dev
-                    .make_credential("fido2luks", &[0u8], "", &[0u8; 32])
+                    .make_hmac_credential_full(
+                        authenticator_rp(),
+                        authenticator_user(),
+                        &[0u8; 32],
+                        &[],
+                        authenticator_options(),
+                    )
                     .map(|cred| cred.into())
                 {
                     //TODO: make credentials device specific
@@ -33,16 +67,16 @@ pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
 pub fn perform_challenge(credential_id: &str, salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
     let cred = FidoHmacCredential {
         id: hex::decode(credential_id).unwrap(),
-        rp_id: "hmac".to_string(),
+        rp_id: RP_ID.to_string(),
     };
     let mut errs = Vec::new();
     match get_devices()? {
         ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
         devs => {
             for mut dev in devs.into_iter() {
-                match dev.hmac_challange(&cred, &salt[..]) {
+                match dev.get_hmac_assertion(&cred, &sha256(&[&salt[..]]), None, None) {
                     Ok(secret) => {
-                        return Ok(secret);
+                        return Ok(secret.0);
                     }
                     Err(e) => {
                         errs.push(e);

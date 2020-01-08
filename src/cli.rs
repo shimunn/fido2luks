@@ -70,10 +70,6 @@ pub fn add_password_to_luks(
     Ok(slot)
 }
 
-pub fn authenticator_connected() -> Fido2LuksResult<bool> {
-    Ok(!device::get_devices()?.is_empty())
-}
-
 #[derive(Debug, StructOpt)]
 pub struct Args {
     /// Request passwords via Stdin instead of using the password helper

@@ -105,7 +105,7 @@ pub struct SecretGeneration {
     #[structopt(
         name = "password-helper",
         env = "FIDO2LUKS_PASSWORD_HELPER",
-        default_value = "/usr/bin/systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
+        default_value = "/usr/bin/env systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
     )]
     pub password_helper: PasswordHelper,
 }

@@ -2,7 +2,7 @@
 
 This will allow you to unlock your luks encrypted disk with an fido2 compatible key
 
-Note: This has only been tested under Fedora 30 using a Solo Key
+Note: This has only been tested under Fedora 31 using a Solo Key, Trezor Model T
 
 ## Setup
 

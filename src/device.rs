@@ -33,7 +33,7 @@ pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
 pub fn perform_challenge(credential_id: &str, salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
     let cred = FidoHmacCredential {
         id: hex::decode(credential_id).unwrap(),
-        rp_id: "hmac".to_string(),
+        rp_id: "fido2luks".to_string(),
     };
     let mut errs = Vec::new();
     match get_devices()? {

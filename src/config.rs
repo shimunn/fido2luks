@@ -94,7 +94,7 @@ pub enum PasswordHelper {
 impl Default for PasswordHelper {
     fn default() -> Self {
         PasswordHelper::Script(
-            "/usr/bin/systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
+            "/usr/bin/env systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
                 .into(),
         )
     }

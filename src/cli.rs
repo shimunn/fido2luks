@@ -177,7 +177,11 @@ pub enum Command {
     },
     /// Generate a new FIDO credential
     #[structopt(name = "credential")]
-    Credential,
+    Credential {
+        /// Name to be displayed on the authenticator if it has a display
+        #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME")]
+        name: Option<String>,
+    },
     /// Check if an authenticator is connected
     #[structopt(name = "connected")]
     Connected,
@@ -191,8 +195,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
     let mut stdout = io::stdout();
     let args = parse_cmdline();
     match &args.command {
-        Command::Credential => {
-            let cred = make_credential_id()?;
+        Command::Credential { name } => {
+            let cred = make_credential_id(name.as_ref().map(|n| n.as_ref()))?;
             println!("{}", hex::encode(&cred.id));
             Ok(())
         }

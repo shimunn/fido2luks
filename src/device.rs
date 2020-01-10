@@ -25,16 +25,16 @@ fn authenticator_rp() -> PublicKeyCredentialRpEntity<'static> {
     }
 }
 
-fn authenticator_user() -> PublicKeyCredentialUserEntity<'static> {
+fn authenticator_user(name: Option<&str>) -> PublicKeyCredentialUserEntity {
     PublicKeyCredentialUserEntity {
         id: &[0u8],
-        name: "",
+        name: name.unwrap_or(""),
         icon: None,
-        display_name: None,
+        display_name: name,
     }
 }
 
-pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
+pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoHmacCredential> {
     let mut errs = Vec::new();
     match get_devices()? {
         ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
@@ -43,7 +43,7 @@ pub fn make_credential_id() -> Fido2LuksResult<FidoHmacCredential> {
                 match dev
                     .make_hmac_credential_full(
                         authenticator_rp(),
-                        authenticator_user(),
+                        authenticator_user(name),
                         &[0u8; 32],
                         &[],
                         authenticator_options(),

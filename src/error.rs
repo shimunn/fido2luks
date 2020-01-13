@@ -11,11 +11,11 @@ pub enum Fido2LuksError {
     KeyfileError { cause: io::Error },
     #[fail(display = "authenticator error: {}", cause)]
     AuthenticatorError { cause: ctap::FidoError },
-    #[fail(display = "no authenticator found, please ensure you device is plugged in")]
+    #[fail(display = "no authenticator found, please ensure your device is plugged in")]
     NoAuthenticatorError,
     #[fail(display = "luks err")]
     LuksError { cause: cryptsetup_rs::device::Error },
-    #[fail(display = "no authenticator found, please ensure you device is plugged in")]
+    #[fail(display = "no authenticator found, please ensure your device is plugged in")]
     IoError { cause: io::Error },
     #[fail(display = "supplied secret isn't valid for this device")]
     WrongSecret,

@@ -9,7 +9,7 @@ MOUNT=$(command -v mount)
 UMOUNT=$(command -v umount)
 
 TIMEOUT=120
-CON_MSG="Please connect your authenicator"
+CON_MSG="Please connect your authenticator"
 
 generate_service () {
         local credential_id=$1 target_uuid=$2 timeout=$3 sd_dir=${4:-$NORMAL_DIR}
@@ -19,6 +19,10 @@ generate_service () {
 
         local crypto_target_service="systemd-cryptsetup@luks\x2d${sd_target_uuid}.service"
         local sd_service="${sd_dir}/luks-2fa@luks\x2d${sd_target_uuid}.service"
+        local fido2luks_args="--bin"
+        if [ ! -z "$timeout" ]; then
+          fido2luks_args="$fido2luks_args --await-dev ${timeout}"
+        fi
         {
                 printf -- "[Unit]"
                 printf -- "\nDescription=%s" "2fa for luks"
@@ -27,18 +31,15 @@ generate_service () {
                 printf -- "\nBefore=%s umount.target luks-2fa.target" "$crypto_target_service"
                 printf -- "\nConflicts=umount.target"
                 printf -- "\nDefaultDependencies=no"
-                printf -- "\nJobTimeoutSec=%s" "$timeout"
-
+                [ ! -z "$timeout" ] && printf -- "\nJobTimeoutSec=%s" "$timeout"
                 printf -- "\n\n[Service]"
                 printf -- "\nType=oneshot"
                 printf -- "\nRemainAfterExit=yes"
                 printf -- "\nEnvironmentFile=%s" "/etc/fido2luks.conf"
-                printf -- "\nEnvironment=FIDO2LUKS_CREDENTIAL_ID='%s'" "$credential_id"
+                [ ! -z "$credential_id" ] && printf -- "\nEnvironment=FIDO2LUKS_CREDENTIAL_ID='%s'" "$credential_id"
                 printf -- "\nKeyringMode=%s" "shared"
 		            printf -- "\nExecStartPre=-/usr/bin/plymouth display-message --text \"${CON_MSG}\""
-		            printf -- "\nExecStartPre=-/bin/bash -c \"while ! ${FIDO2LUKS} connected; do /usr/bin/sleep 1; done\""
-		            printf -- "\nExecStartPre=-/usr/bin/plymouth hide-message --text \"${CON_MSG}\""
-                printf -- "\nExecStart=/bin/bash -c \"${FIDO2LUKS} print-secret --bin | ${CRYPTSETUP} attach 'luks-%s' '/dev/disk/by-uuid/%s' '/dev/stdin'\"" "$target_uuid" "$target_uuid"
+                printf -- "\nExecStart=/bin/bash -c \"${FIDO2LUKS} print-secret $fido2luks_args | ${CRYPTSETUP} attach 'luks-%s' '/dev/disk/by-uuid/%s' '/dev/stdin'\"" "$target_uuid" "$target_uuid"
                 printf -- "\nExecStop=${CRYPTSETUP} detach 'luks-%s'" "$target_uuid"
         } > "$sd_service"
 

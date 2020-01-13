@@ -8,9 +8,16 @@ use cryptsetup_rs::{CryptDevice, Luks1CryptDevice};
 use libcryptsetup_sys::crypt_keyslot_info;
 use structopt::StructOpt;
 
+use failure::_core::fmt::{Error, Formatter};
+use failure::_core::str::FromStr;
+use failure::_core::time::Duration;
 use std::io::Write;
-use std::process::exit;
 
+use std::io::stdout;
+use std::process::exit;
+use std::thread;
+
+use std::time::SystemTime;
 pub fn add_key_to_luks(
     device: PathBuf,
     secret: &[u8; 32],
@@ -70,6 +77,23 @@ pub fn add_password_to_luks(
     Ok(slot)
 }
 
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct HexEncoded(Vec<u8>);
+
+impl std::fmt::Display for HexEncoded {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_str(&hex::encode(&self.0))
+    }
+}
+
+impl FromStr for HexEncoded {
+    type Err = hex::FromHexError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(HexEncoded(hex::decode(s)?))
+    }
+}
+
 #[derive(Debug, StructOpt)]
 pub struct Args {
     /// Request passwords via Stdin instead of using the password helper
@@ -83,7 +107,7 @@ pub struct Args {
 pub struct SecretGeneration {
     /// FIDO credential id, generate using fido2luks credential
     #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
-    pub credential_id: String,
+    pub credential_id: HexEncoded,
     /// Salt for secret generation, defaults to 'ask'
     ///
     /// Options:{n}
@@ -104,6 +128,10 @@ pub struct SecretGeneration {
         default_value = "/usr/bin/env systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
     )]
     pub password_helper: PasswordHelper,
+
+    /// Await for an authenticator to be connected, timeout after n seconds
+    #[structopt(long = "await-dev", name = "await-dev", env = "FIDO2LUKS_DEVICE_AWAIT")]
+    pub await_authenticator: Option<u64>,
 }
 
 impl SecretGeneration {
@@ -117,8 +145,20 @@ impl SecretGeneration {
 
     pub fn obtain_secret(&self) -> Fido2LuksResult<[u8; 32]> {
         let salt = self.salt.obtain(&self.password_helper)?;
+        if let Some(timeout) = self.await_authenticator.map(Duration::from_secs) {
+            let start = SystemTime::now();
+            while start
+                .elapsed()
+                .map(|el| el < timeout)
+                .ok()
+                .and_then(|el| get_devices().map(|devs| el && devs.is_empty()).ok())
+                .unwrap_or(false)
+            {
+                thread::sleep(Duration::from_millis(500));
+            }
+        }
         Ok(assemble_secret(
-            &perform_challenge(&self.credential_id, &salt)?,
+            &perform_challenge(&self.credential_id.0, &salt)?,
             &salt,
         ))
     }
@@ -142,13 +182,12 @@ pub enum Command {
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
-        /// Use a keyfile instead of a password
+        /// Use a keyfile instead of typing a previous password
         #[structopt(short = "d", long = "keyfile")]
         keyfile: Option<PathBuf>,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
     },
-
     /// Replace a previously added key with a password
     #[structopt(name = "replace-key")]
     ReplaceKey {
@@ -157,7 +196,7 @@ pub enum Command {
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
-        /// Use a keyfile instead of a password
+        /// Use a keyfile instead of typing a previous password
         #[structopt(short = "d", long = "keyfile")]
         keyfile: Option<PathBuf>,
         #[structopt(flatten)]

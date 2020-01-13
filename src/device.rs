@@ -64,9 +64,9 @@ pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoHmacCredent
     Err(errs.pop().ok_or(Fido2LuksError::NoAuthenticatorError)?)?
 }
 
-pub fn perform_challenge(credential_id: &str, salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
+pub fn perform_challenge(credential_id: &[u8], salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
     let cred = FidoHmacCredential {
-        id: hex::decode(credential_id).unwrap(),
+        id: credential_id.to_vec(),
         rp_id: RP_ID.to_string(),
     };
     let mut errs = Vec::new();

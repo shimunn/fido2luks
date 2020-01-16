@@ -13,7 +13,6 @@ use failure::_core::str::FromStr;
 use failure::_core::time::Duration;
 use std::io::Write;
 
-use std::io::stdout;
 use std::process::exit;
 use std::thread;
 
@@ -111,7 +110,7 @@ pub struct SecretGeneration {
     /// Salt for secret generation, defaults to 'ask'
     ///
     /// Options:{n}
-    ///  - ask              : Promt user using password helper{n}
+    ///  - ask              : Prompt user using password helper{n}
     ///  - file:<PATH>      : Will read <FILE>{n}
     ///  - string:<STRING>  : Will use <STRING>, which will be handled like a password provided to the 'ask' option{n}
     #[structopt(
@@ -130,8 +129,13 @@ pub struct SecretGeneration {
     pub password_helper: PasswordHelper,
 
     /// Await for an authenticator to be connected, timeout after n seconds
-    #[structopt(long = "await-dev", name = "await-dev", env = "FIDO2LUKS_DEVICE_AWAIT")]
-    pub await_authenticator: Option<u64>,
+    #[structopt(
+        long = "await-dev",
+        name = "await-dev",
+        env = "FIDO2LUKS_DEVICE_AWAIT",
+        default_value = "15"
+    )]
+    pub await_authenticator: u64,
 }
 
 impl SecretGeneration {
@@ -145,17 +149,20 @@ impl SecretGeneration {
 
     pub fn obtain_secret(&self) -> Fido2LuksResult<[u8; 32]> {
         let salt = self.salt.obtain(&self.password_helper)?;
-        if let Some(timeout) = self.await_authenticator.map(Duration::from_secs) {
-            let start = SystemTime::now();
-            while start
-                .elapsed()
-                .map(|el| el < timeout)
-                .ok()
-                .and_then(|el| get_devices().map(|devs| el && devs.is_empty()).ok())
+        let timeout = Duration::from_secs(self.await_authenticator);
+        let start = SystemTime::now();
+
+        while let Ok(el) = start.elapsed() {
+            if el > timeout {
+                Err(error::Fido2LuksError::NoAuthenticatorError)?;
+            }
+            if get_devices()
+                .map(|devices| !devices.is_empty())
                 .unwrap_or(false)
             {
-                thread::sleep(Duration::from_millis(500));
+                break;
             }
+            thread::sleep(Duration::from_millis(500));
         }
         Ok(assemble_secret(
             &perform_challenge(&self.credential_id.0, &salt)?,

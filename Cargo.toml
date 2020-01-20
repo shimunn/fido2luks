@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
@@ -14,7 +14,6 @@ categories = ["command-line-utilities"]
 license-file = "LICENSE"
 
 [dependencies]
-#ctap = "0.1.0"
 ctap_hmac = "0.2.1"
 cryptsetup-rs = "0.2.1"
 libcryptsetup-sys = "0.1.2"

@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
@@ -15,8 +15,6 @@ license-file = "LICENSE"
 
 [dependencies]
 ctap_hmac = "0.2.1"
-cryptsetup-rs = "0.2.1"
-libcryptsetup-sys = "0.1.2"
 
 
 hex = "0.3.2"
@@ -24,6 +22,7 @@ ring = "0.13.5"
 failure = "0.1.5"
 rpassword = "4.0.1"
 structopt = "0.3.2"
+libcryptsetup-rs = "0.2.0"
 
 [profile.release]
 lto = true

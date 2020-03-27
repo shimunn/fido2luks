@@ -46,10 +46,10 @@ pub fn add_key<P: AsRef<Path>>(
 
 pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksResult<u32> {
     let mut device = load_device_handle(path)?;
-    let mut slot = 0;
     let mut handle;
     let mut destroyed = 0;
-    loop {
+    //TODO: detect how many keyslots there are instead of trying within a given range
+    for slot in 0..1024 {
         handle = device.keyslot_handle(Some(slot));
         match handle.status()? {
             KeyslotInfo::Inactive => continue,
@@ -63,7 +63,6 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
             KeyslotInfo::ActiveLast => break,
             _ => (),
         }
-        slot += 1;
     }
     Ok(destroyed)
 }

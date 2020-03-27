@@ -5,9 +5,6 @@ use crate::cli::*;
 use crate::config::*;
 use crate::device::*;
 use crate::error::*;
-use cryptsetup_rs as luks;
-use cryptsetup_rs::Luks1CryptDevice;
-
 use std::io;
 use std::path::PathBuf;
 use std::process::exit;
@@ -16,13 +13,8 @@ mod cli;
 mod config;
 mod device;
 mod error;
+mod luks;
 mod util;
-
-fn open_container(device: &PathBuf, name: &str, secret: &[u8; 32]) -> Fido2LuksResult<()> {
-    let mut handle = luks::open(device.canonicalize()?)?.luks1()?;
-    let _slot = handle.activate(name, &secret[..])?;
-    Ok(())
-}
 
 fn assemble_secret(hmac_result: &[u8], salt: &[u8]) -> [u8; 32] {
     util::sha256(&[salt, hmac_result])

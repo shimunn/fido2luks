@@ -1,11 +1,7 @@
 use crate::error::*;
+use crate::luks;
 use crate::*;
 
-use cryptsetup_rs as luks;
-use cryptsetup_rs::api::{CryptDeviceHandle, CryptDeviceOpenBuilder, Luks1Params};
-use cryptsetup_rs::{CryptDevice, Luks1CryptDevice};
-
-use libcryptsetup_sys::crypt_keyslot_info;
 use structopt::StructOpt;
 
 use failure::_core::fmt::{Error, Formatter};
@@ -17,65 +13,6 @@ use std::process::exit;
 use std::thread;
 
 use std::time::SystemTime;
-pub fn add_key_to_luks(
-    device: PathBuf,
-    secret: &[u8; 32],
-    old_secret: Box<dyn Fn() -> Fido2LuksResult<Vec<u8>>>,
-    exclusive: bool,
-) -> Fido2LuksResult<u8> {
-    fn offer_format(
-        _dev: CryptDeviceOpenBuilder,
-    ) -> Fido2LuksResult<CryptDeviceHandle<Luks1Params>> {
-        unimplemented!()
-    }
-    let dev =
-        || -> luks::device::Result<CryptDeviceOpenBuilder> { luks::open(&device.canonicalize()?) };
-
-    let prev_key = old_secret()?;
-
-    let mut handle = match dev()?.luks1() {
-        Ok(handle) => handle,
-        Err(luks::device::Error::BlkidError(_)) => offer_format(dev()?)?,
-        Err(luks::device::Error::CryptsetupError(errno)) => {
-            //if i32::from(errno) == 555
-            dbg!(errno);
-            offer_format(dev()?)?
-        } //TODO: find correct errorno and offer to format as luks
-        err => err?,
-    };
-    handle.set_iteration_time(50);
-    let slot = handle.add_keyslot(secret, Some(prev_key.as_slice()), None)?;
-    if exclusive {
-        for old_slot in 0..8u8 {
-            if old_slot != slot
-                && (handle.keyslot_status(old_slot.into()) == crypt_keyslot_info::CRYPT_SLOT_ACTIVE
-                    || handle.keyslot_status(old_slot.into())
-                        == crypt_keyslot_info::CRYPT_SLOT_ACTIVE_LAST)
-            {
-                handle.destroy_keyslot(old_slot)?;
-            }
-        }
-    }
-    Ok(slot)
-}
-
-pub fn add_password_to_luks(
-    device: PathBuf,
-    secret: &[u8; 32],
-    new_secret: Box<dyn Fn() -> Fido2LuksResult<Vec<u8>>>,
-    add_password: bool,
-) -> Fido2LuksResult<u8> {
-    let dev = luks::open(&device.canonicalize()?)?;
-    let mut handle = dev.luks1()?;
-    let prev_slot = if add_password {
-        Some(handle.add_keyslot(&secret[..], Some(&secret[..]), None)?)
-    } else {
-        None
-    };
-    let slot = handle.update_keyslot(&new_secret()?[..], &secret[..], prev_slot)?;
-    Ok(slot)
-}
-
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct HexEncoded(Vec<u8>);
 
@@ -265,23 +202,27 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             ref secret_gen,
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
-            let slot = add_key_to_luks(
-                device.clone(),
-                &secret,
-                if let Some(keyfile) = keyfile.clone() {
-                    Box::new(move || util::read_keyfile(keyfile.clone()))
-                } else {
-                    Box::new(|| {
-                        util::read_password("Old password", true).map(|p| p.as_bytes().to_vec())
-                    })
-                },
-                *exclusive,
-            )?;
-            println!(
-                "Added to key to device {}, slot: {}",
-                device.display(),
-                slot
-            );
+            let old_secret = if let Some(keyfile) = keyfile.clone() {
+                util::read_keyfile(keyfile.clone())
+            } else {
+                util::read_password("Old password", false).map(|p| p.as_bytes().to_vec())
+            }?;
+            let added_slot = luks::add_key(device.clone(), &secret, &old_secret[..], Some(10))?;
+            if *exclusive {
+                let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
+                println!(
+                    "Added to key to device {}, slot: {}\nRemoved {} old keys",
+                    device.display(),
+                    added_slot,
+                    destroyed
+                );
+            } else {
+                println!(
+                    "Added to key to device {}, slot: {}",
+                    device.display(),
+                    added_slot
+                );
+            }
             Ok(())
         }
         Command::ReplaceKey {
@@ -291,18 +232,16 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             ref secret_gen,
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
-            let slot = add_password_to_luks(
-                device.clone(),
-                &secret,
-                if let Some(keyfile) = keyfile.clone() {
-                    Box::new(move || util::read_keyfile(keyfile.clone()))
-                } else {
-                    Box::new(|| {
-                        util::read_password("Password to add", true).map(|p| p.as_bytes().to_vec())
-                    })
-                },
-                *add_password,
-            )?;
+            let new_secret = if let Some(keyfile) = keyfile.clone() {
+                util::read_keyfile(keyfile.clone())
+            } else {
+                util::read_password("Password to add", *add_password).map(|p| p.as_bytes().to_vec())
+            }?;
+            let slot = if *add_password {
+                luks::add_key(device, &new_secret[..], &secret, None)
+            } else {
+                luks::replace_key(device, &new_secret[..], &secret, Some(5))
+            }?;
             println!(
                 "Added to password to device {}, slot: {}",
                 device.display(),
@@ -319,7 +258,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             let mut retries = *retries;
             loop {
                 let secret = secret_gen.patch(&args).obtain_secret()?;
-                match open_container(&device, &name, &secret) {
+                match luks::open_container(&device, &name, &secret) {
                     Err(e) => match e {
                         Fido2LuksError::WrongSecret if retries > 0 => {
                             retries -= 1;

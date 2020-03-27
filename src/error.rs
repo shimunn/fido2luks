@@ -58,7 +58,12 @@ impl From<FidoError> for Fido2LuksError {
 
 impl From<LibcryptErr> for Fido2LuksError {
     fn from(e: LibcryptErr) -> Self {
-        LuksError { cause: e }
+        match e {
+            LibcryptErr::IOError(e) if e.raw_os_error().iter().any(|code| code == &1i32) => {
+                WrongSecret
+            }
+            _ => LuksError { cause: e },
+        }
     }
 }
 impl From<io::Error> for Fido2LuksError {

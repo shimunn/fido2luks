@@ -1,9 +1,6 @@
 use crate::error::*;
 
-use libcryptsetup_rs::{
-    CryptActivateFlags, CryptDevice, CryptInit, CryptKeyslot, CryptVolumeKeyFlags,
-    EncryptionFormat, KeyslotInfo, LibcryptErr,
-};
+use libcryptsetup_rs::{CryptActivateFlags, CryptDevice, CryptInit, EncryptionFormat, KeyslotInfo};
 use std::path::Path;
 
 fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
@@ -14,7 +11,7 @@ fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
         .into_iter()
         .fold(None, |res, format| match res {
             Some(Ok(())) => res,
-            Some(e) => Some(e.and(load(format))),
+            Some(e) => Some(e.or(load(format))),
             None => Some(load(format)),
         })
         .unwrap()?;
@@ -47,16 +44,18 @@ pub fn add_key<P: AsRef<Path>>(
     Ok(slot)
 }
 
-pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksResult<()> {
+pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksResult<u32> {
     let mut device = load_device_handle(path)?;
     let mut slot = 0;
     let mut handle;
+    let mut destroyed = 0;
     loop {
         handle = device.keyslot_handle(Some(slot));
         match handle.status()? {
             KeyslotInfo::Inactive => continue,
             KeyslotInfo::Active if !exclude.contains(&slot) => {
-                dbg!((slot, handle.destroy()?));
+                handle.destroy()?;
+                destroyed += 1;
             }
             _ => (),
         }
@@ -66,7 +65,7 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
         }
         slot += 1;
     }
-    Ok(())
+    Ok(destroyed)
 }
 
 pub fn replace_key<P: AsRef<Path>>(

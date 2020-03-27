@@ -209,13 +209,20 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             }?;
             let added_slot = luks::add_key(device.clone(), &secret, &old_secret[..], Some(10))?;
             if *exclusive {
-                luks::remove_keyslots(&device, &[added_slot])?;
+                let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
+                println!(
+                    "Added to key to device {}, slot: {}\nRemoved {} old keys",
+                    device.display(),
+                    added_slot,
+                    destroyed
+                );
+            } else {
+                println!(
+                    "Added to key to device {}, slot: {}",
+                    device.display(),
+                    added_slot
+                );
             }
-            println!(
-                "Added to key to device {}, slot: {}",
-                device.display(),
-                added_slot
-            );
             Ok(())
         }
         Command::ReplaceKey {

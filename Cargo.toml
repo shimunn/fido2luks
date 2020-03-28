@@ -22,7 +22,7 @@ ring = "0.13.5"
 failure = "0.1.5"
 rpassword = "4.0.1"
 structopt = "0.3.2"
-libcryptsetup-rs = "0.2.0"
+libcryptsetup-rs = { git = "https://github.com/shimunn/libcryptsetup-rs.git", branch = "crypt_load_ptr_null" }
 
 [profile.release]
 lto = true

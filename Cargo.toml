@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.2.4"
+version = "0.2.6"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
@@ -14,9 +14,7 @@ categories = ["command-line-utilities"]
 license-file = "LICENSE"
 
 [dependencies]
-ctap_hmac = "0.2.1"
-
-
+ctap_hmac = { git = "https://git.shimun.net/shimun/ctap.git", branch = "assert_multiple", features = ["request_multiple"] }
 hex = "0.3.2"
 ring = "0.13.5"
 failure = "0.1.5"

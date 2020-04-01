@@ -4,19 +4,19 @@ use crate::*;
 
 use structopt::StructOpt;
 
-use failure::_core::fmt::{Error, Formatter};
+use ctap::FidoCredential;
+use failure::_core::fmt::{Display, Error, Formatter};
 use failure::_core::str::FromStr;
 use failure::_core::time::Duration;
 use std::io::Write;
-
 use std::process::exit;
 use std::thread;
 
 use std::time::SystemTime;
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct HexEncoded(Vec<u8>);
+pub struct HexEncoded(pub Vec<u8>);
 
-impl std::fmt::Display for HexEncoded {
+impl Display for HexEncoded {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.write_str(&hex::encode(&self.0))
     }
@@ -27,6 +27,30 @@ impl FromStr for HexEncoded {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(HexEncoded(hex::decode(s)?))
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct CommaSeparated<T: FromStr + Display>(pub Vec<T>);
+
+impl<T: Display + FromStr> Display for CommaSeparated<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        for i in &self.0 {
+            f.write_str(&i.to_string())?;
+            f.write_str(",")?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: Display + FromStr> FromStr for CommaSeparated<T> {
+    type Err = <T as FromStr>::Err;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(CommaSeparated(
+            s.split(',')
+                .map(|part| <T as FromStr>::from_str(dbg!(part)))
+                .collect::<Result<Vec<_>, _>>()?,
+        ))
     }
 }
 
@@ -41,9 +65,9 @@ pub struct Args {
 
 #[derive(Debug, StructOpt, Clone)]
 pub struct SecretGeneration {
-    /// FIDO credential id, generate using fido2luks credential
+    /// FIDO credential ids, generate using fido2luks credential
     #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
-    pub credential_id: HexEncoded,
+    pub credential_ids: CommaSeparated<HexEncoded>,
     /// Salt for secret generation, defaults to 'ask'
     ///
     /// Options:{n}
@@ -75,6 +99,14 @@ pub struct SecretGeneration {
     pub await_authenticator: u64,
 }
 
+#[derive(Debug, StructOpt, Clone)]
+pub struct LuksSettings {
+    /// Number of milliseconds required to derive the volume decryption key
+    /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
+    #[structopt(long = "kdf-time", name = "kdf-time")]
+    kdf_time: Option<u64>,
+}
+
 impl SecretGeneration {
     pub fn patch(&self, args: &Args) -> Self {
         let mut me = self.clone();
@@ -101,8 +133,18 @@ impl SecretGeneration {
             }
             thread::sleep(Duration::from_millis(500));
         }
+        let credentials = &self
+            .credential_ids
+            .0
+            .iter()
+            .map(|HexEncoded(id)| FidoCredential {
+                id: id.to_vec(),
+                public_key: None,
+            })
+            .collect::<Vec<_>>();
+        let credentials = credentials.iter().collect::<Vec<_>>();
         Ok(assemble_secret(
-            &perform_challenge(&self.credential_id.0, &salt)?,
+            &perform_challenge(&credentials[..], &salt)?,
             &salt,
         ))
     }
@@ -131,6 +173,8 @@ pub enum Command {
         keyfile: Option<PathBuf>,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
+        #[structopt(flatten)]
+        luks_settings: LuksSettings,
     },
     /// Replace a previously added key with a password
     #[structopt(name = "replace-key")]
@@ -145,6 +189,8 @@ pub enum Command {
         keyfile: Option<PathBuf>,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
+        #[structopt(flatten)]
+        luks_settings: LuksSettings,
     },
     /// Open the LUKS device
     #[structopt(name = "open")]
@@ -200,6 +246,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             exclusive,
             keyfile,
             ref secret_gen,
+            luks_settings,
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
             let old_secret = if let Some(keyfile) = keyfile.clone() {
@@ -207,7 +254,12 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 util::read_password("Old password", false).map(|p| p.as_bytes().to_vec())
             }?;
-            let added_slot = luks::add_key(device.clone(), &secret, &old_secret[..], Some(10))?;
+            let added_slot = luks::add_key(
+                device.clone(),
+                &secret,
+                &old_secret[..],
+                luks_settings.kdf_time.or(Some(10)),
+            )?;
             if *exclusive {
                 let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
                 println!(
@@ -230,6 +282,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             add_password,
             keyfile,
             ref secret_gen,
+            luks_settings,
         } => {
             let secret = secret_gen.patch(&args).obtain_secret()?;
             let new_secret = if let Some(keyfile) = keyfile.clone() {
@@ -238,9 +291,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 util::read_password("Password to add", *add_password).map(|p| p.as_bytes().to_vec())
             }?;
             let slot = if *add_password {
-                luks::add_key(device, &new_secret[..], &secret, None)
+                luks::add_key(device, &new_secret[..], &secret, luks_settings.kdf_time)
             } else {
-                luks::replace_key(device, &new_secret[..], &secret, Some(5))
+                luks::replace_key(device, &new_secret[..], &secret, luks_settings.kdf_time)
             }?;
             println!(
                 "Added to password to device {}, slot: {}",

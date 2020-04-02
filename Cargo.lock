@@ -158,7 +158,7 @@ dependencies = [
 
 [[package]]
 name = "ctap_hmac"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -214,9 +214,9 @@ dependencies = [
 
 [[package]]
 name = "fido2luks"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
- "ctap_hmac 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ctap_hmac 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libcryptsetup-rs 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -854,7 +854,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
 "checksum cloudabi 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 "checksum csv-core 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "2b2466559f260f48ad25fe6317b3c8dac77b5bdb5763ac7d9d6103530663bc90"
-"checksum ctap_hmac 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4d57004228e303ed0d161f081020240d969ce18b623c3f4503645e1a06b42ae7"
+"checksum ctap_hmac 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "0fbb287d2cf549cc10030bd3c1884b13dab6691174e2c6c8badde97110a98b1c"
 "checksum either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 "checksum env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 "checksum failure 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "b8529c2421efa3066a5cbd8063d2244603824daccb6936b079010bb2aa89464b"

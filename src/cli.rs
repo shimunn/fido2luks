@@ -12,7 +12,9 @@ use std::io::Write;
 use std::process::exit;
 use std::thread;
 
+use crate::util::read_password;
 use std::time::SystemTime;
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct HexEncoded(Vec<u8>);
 
@@ -73,19 +75,38 @@ pub struct SecretGeneration {
         default_value = "15"
     )]
     pub await_authenticator: u64,
+
+    /// Request the password twice to ensure it being correct
+    #[structopt(
+        long = "verify-password",
+        env = "FIDO2LUKS_VERIFY_PASSWORD",
+        hidden = true
+    )]
+    pub verify_password: Option<bool>,
 }
 
 impl SecretGeneration {
-    pub fn patch(&self, args: &Args) -> Self {
+    pub fn patch(&self, args: &Args, verify_password: Option<bool>) -> Self {
         let mut me = self.clone();
         if args.interactive {
             me.password_helper = PasswordHelper::Stdin;
         }
+        me.verify_password = me.verify_password.or(verify_password);
         me
     }
 
-    pub fn obtain_secret(&self) -> Fido2LuksResult<[u8; 32]> {
-        let salt = self.salt.obtain(&self.password_helper)?;
+    pub fn obtain_secret(&self, password_query: &str) -> Fido2LuksResult<[u8; 32]> {
+        let mut salt = [0u8; 32];
+        match self.password_helper {
+            PasswordHelper::Stdin if !self.verify_password.unwrap_or(true) => {
+                salt.copy_from_slice(
+                    read_password(password_query, self.verify_password.unwrap_or(true))?.as_bytes(),
+                );
+            }
+            _ => {
+                salt = self.salt.obtain(&self.password_helper)?;
+            }
+        }
         let timeout = Duration::from_secs(self.await_authenticator);
         let start = SystemTime::now();
 
@@ -187,7 +208,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             binary,
             ref secret_gen,
         } => {
-            let secret = secret_gen.patch(&args).obtain_secret()?;
+            let secret = secret_gen
+                .patch(&args, Some(false))
+                .obtain_secret("Password")?;
             if *binary {
                 stdout.write(&secret[..])?;
             } else {
@@ -201,12 +224,12 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             keyfile,
             ref secret_gen,
         } => {
-            let secret = secret_gen.patch(&args).obtain_secret()?;
             let old_secret = if let Some(keyfile) = keyfile.clone() {
                 util::read_keyfile(keyfile.clone())
             } else {
                 util::read_password("Old password", false).map(|p| p.as_bytes().to_vec())
             }?;
+            let secret = secret_gen.patch(&args, None).obtain_secret("Password")?;
             let added_slot = luks::add_key(device.clone(), &secret, &old_secret[..], Some(10))?;
             if *exclusive {
                 let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
@@ -231,12 +254,14 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             keyfile,
             ref secret_gen,
         } => {
-            let secret = secret_gen.patch(&args).obtain_secret()?;
             let new_secret = if let Some(keyfile) = keyfile.clone() {
                 util::read_keyfile(keyfile.clone())
             } else {
                 util::read_password("Password to add", *add_password).map(|p| p.as_bytes().to_vec())
             }?;
+            let secret = secret_gen
+                .patch(&args, Some(false))
+                .obtain_secret("Password")?;
             let slot = if *add_password {
                 luks::add_key(device, &new_secret[..], &secret, None)
             } else {
@@ -257,7 +282,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let mut retries = *retries;
             loop {
-                let secret = secret_gen.patch(&args).obtain_secret()?;
+                let secret = secret_gen
+                    .patch(&args, Some(false))
+                    .obtain_secret("Password")?;
                 match luks::open_container(&device, &name, &secret) {
                     Err(e) => match e {
                         Fido2LuksError::WrongSecret if retries > 0 => {

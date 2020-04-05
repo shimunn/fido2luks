@@ -4,6 +4,7 @@ use ctap::{
     self, extensions::hmac::HmacExtension, request_multiple_devices, FidoAssertionRequestBuilder,
     FidoCredential, FidoCredentialRequestBuilder, FidoDevice, FidoError, FidoErrorKind,
 };
+use std::time::Duration;
 
 const RP_ID: &'static str = "fido2luks";
 
@@ -18,12 +19,14 @@ pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoCredential>
         get_devices()?
             .iter_mut()
             .map(|device| (device, &make_credential)),
+        None,
     )?)
 }
 
 pub fn perform_challenge(
     credentials: &[&FidoCredential],
     salt: &[u8; 32],
+    timeout: Duration,
 ) -> Fido2LuksResult<[u8; 32]> {
     let request = FidoAssertionRequestBuilder::default()
         .rp_id(RP_ID)
@@ -35,6 +38,7 @@ pub fn perform_challenge(
         get_devices()?
             .iter_mut()
             .map(|device| (device, &get_assertion)),
+        Some(timeout),
     )?;
     Ok(secret)
 }

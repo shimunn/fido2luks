@@ -48,7 +48,7 @@ impl<T: Display + FromStr> FromStr for CommaSeparated<T> {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(CommaSeparated(
             s.split(',')
-                .map(|part| <T as FromStr>::from_str(dbg!(part)))
+                .map(|part| <T as FromStr>::from_str(part))
                 .collect::<Result<Vec<_>, _>>()?,
         ))
     }
@@ -144,7 +144,7 @@ impl SecretGeneration {
             .collect::<Vec<_>>();
         let credentials = credentials.iter().collect::<Vec<_>>();
         Ok(assemble_secret(
-            &perform_challenge(&credentials[..], &salt)?,
+            &perform_challenge(&credentials[..], &salt, timeout - start.elapsed().unwrap())?,
             &salt,
         ))
     }

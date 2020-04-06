@@ -4,7 +4,7 @@ use crate::*;
 
 use structopt::StructOpt;
 
-use ctap::FidoCredential;
+use ctap::{FidoCredential, FidoErrorKind};
 use failure::_core::fmt::{Display, Error, Formatter};
 use failure::_core::str::FromStr;
 use failure::_core::time::Duration;
@@ -65,7 +65,7 @@ pub struct Args {
 
 #[derive(Debug, StructOpt, Clone)]
 pub struct SecretGeneration {
-    /// FIDO credential ids, generate using fido2luks credential
+    /// FIDO credential ids, seperated by ',' generate using fido2luks credential
     #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
     pub credential_ids: CommaSeparated<HexEncoded>,
     /// Salt for secret generation, defaults to 'ask'
@@ -97,14 +97,6 @@ pub struct SecretGeneration {
         default_value = "15"
     )]
     pub await_authenticator: u64,
-}
-
-#[derive(Debug, StructOpt, Clone)]
-pub struct LuksSettings {
-    /// Number of milliseconds required to derive the volume decryption key
-    /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
-    #[structopt(long = "kdf-time", name = "kdf-time")]
-    kdf_time: Option<u64>,
 }
 
 impl SecretGeneration {
@@ -150,6 +142,41 @@ impl SecretGeneration {
     }
 }
 
+#[derive(Debug, StructOpt, Clone)]
+pub struct LuksSettings {
+    /// Number of milliseconds required to derive the volume decryption key
+    /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
+    #[structopt(long = "kdf-time", name = "kdf-time")]
+    kdf_time: Option<u64>,
+}
+
+#[derive(Debug, StructOpt, Clone)]
+pub struct OtherSecret {
+    /// Use a keyfile instead of a password
+    #[structopt(short = "d", long = "keyfile", conflicts_with = "fido_device")]
+    keyfile: Option<PathBuf>,
+    /// Use another fido device instead of a password
+    /// Note: this requires for the credential fot the other device to be passed as argument as well
+    #[structopt(short = "f", long = "fido-device", conflicts_with = "keyfile")]
+    fido_device: bool,
+}
+
+impl OtherSecret {
+    pub fn obtain(
+        &self,
+        secret_gen: &SecretGeneration,
+        verify_password: bool,
+        password_question: &str,
+    ) -> Fido2LuksResult<Vec<u8>> {
+        match &self.keyfile {
+            Some(keyfile) => util::read_keyfile(keyfile.clone()),
+            None if self.fido_device => Ok(Vec::from(&secret_gen.obtain_secret()?[..])),
+            None => util::read_password(password_question, verify_password)
+                .map(|p| p.as_bytes().to_vec()),
+        }
+    }
+}
+
 #[derive(Debug, StructOpt)]
 pub enum Command {
     #[structopt(name = "print-secret")]
@@ -168,9 +195,8 @@ pub enum Command {
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
-        /// Use a keyfile instead of typing a previous password
-        #[structopt(short = "d", long = "keyfile")]
-        keyfile: Option<PathBuf>,
+        #[structopt(flatten)]
+        existing_secret: OtherSecret,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
         #[structopt(flatten)]
@@ -184,9 +210,8 @@ pub enum Command {
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
-        /// Use a keyfile instead of typing a previous password
-        #[structopt(short = "d", long = "keyfile")]
-        keyfile: Option<PathBuf>,
+        #[structopt(flatten)]
+        replacement: OtherSecret,
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
         #[structopt(flatten)]
@@ -244,16 +269,13 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::AddKey {
             device,
             exclusive,
-            keyfile,
+            existing_secret,
             ref secret_gen,
             luks_settings,
         } => {
-            let secret = secret_gen.patch(&args).obtain_secret()?;
-            let old_secret = if let Some(keyfile) = keyfile.clone() {
-                util::read_keyfile(keyfile.clone())
-            } else {
-                util::read_password("Old password", false).map(|p| p.as_bytes().to_vec())
-            }?;
+            let secret_gen = secret_gen.patch(&args);
+            let old_secret = existing_secret.obtain(&secret_gen, false, "Existing password")?;
+            let secret = secret_gen.obtain_secret()?;
             let added_slot = luks::add_key(
                 device.clone(),
                 &secret,
@@ -280,16 +302,13 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::ReplaceKey {
             device,
             add_password,
-            keyfile,
+            replacement,
             ref secret_gen,
             luks_settings,
         } => {
+            let secret_gen = secret_gen.patch(&args);
             let secret = secret_gen.patch(&args).obtain_secret()?;
-            let new_secret = if let Some(keyfile) = keyfile.clone() {
-                util::read_keyfile(keyfile.clone())
-            } else {
-                util::read_password("Password to add", *add_password).map(|p| p.as_bytes().to_vec())
-            }?;
+            let new_secret = replacement.obtain(&secret_gen, true, "Replacement password")?;
             let slot = if *add_password {
                 luks::add_key(device, &new_secret[..], &secret, luks_settings.kdf_time)
             } else {
@@ -310,16 +329,25 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let mut retries = *retries;
             loop {
-                let secret = secret_gen.patch(&args).obtain_secret()?;
-                match luks::open_container(&device, &name, &secret) {
-                    Err(e) => match e {
-                        Fido2LuksError::WrongSecret if retries > 0 => {
-                            retries -= 1;
-                            eprintln!("{}", e);
-                            continue;
+                match secret_gen
+                    .patch(&args)
+                    .obtain_secret()
+                    .and_then(|secret| luks::open_container(&device, &name, &secret))
+                {
+                    Err(e) => {
+                        match e {
+                            Fido2LuksError::WrongSecret if retries > 0 => (),
+                            Fido2LuksError::AuthenticatorError { ref cause }
+                                if cause.kind() == FidoErrorKind::Timeout && retries > 0 =>
+                            {
+                                ()
+                            }
+
+                            e => break Err(e)?,
                         }
-                        e => Err(e)?,
-                    },
+                        retries -= 1;
+                        eprintln!("{}", e);
+                    }
                     res => break res,
                 }
             }

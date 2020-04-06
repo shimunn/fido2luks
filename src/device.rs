@@ -1,91 +1,49 @@
 use crate::error::*;
-use crate::util::sha256;
 
+use crate::util;
 use ctap::{
-    self,
-    extensions::hmac::{FidoHmacCredential, HmacExtension},
-    AuthenticatorOptions, FidoDevice, FidoError, FidoErrorKind, PublicKeyCredentialRpEntity,
-    PublicKeyCredentialUserEntity,
+    self, extensions::hmac::HmacExtension, request_multiple_devices, FidoAssertionRequestBuilder,
+    FidoCredential, FidoCredentialRequestBuilder, FidoDevice, FidoError, FidoErrorKind,
 };
+use std::time::Duration;
 
 const RP_ID: &'static str = "fido2luks";
 
-fn authenticator_options() -> Option<AuthenticatorOptions> {
-    Some(AuthenticatorOptions {
-        uv: false, //TODO: should get this from config
-        rk: true,
-    })
-}
-
-fn authenticator_rp() -> PublicKeyCredentialRpEntity<'static> {
-    PublicKeyCredentialRpEntity {
-        id: RP_ID,
-        name: None,
-        icon: None,
+pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoCredential> {
+    let mut request = FidoCredentialRequestBuilder::default().rp_id(RP_ID);
+    if let Some(user_name) = name {
+        request = request.user_name(user_name);
     }
+    let request = request.build().unwrap();
+    let make_credential = |device: &mut FidoDevice| device.make_hmac_credential(&request);
+    Ok(request_multiple_devices(
+        get_devices()?
+            .iter_mut()
+            .map(|device| (device, &make_credential)),
+        None,
+    )?)
 }
 
-fn authenticator_user(name: Option<&str>) -> PublicKeyCredentialUserEntity {
-    PublicKeyCredentialUserEntity {
-        id: &[0u8],
-        name: name.unwrap_or(""),
-        icon: None,
-        display_name: name,
-    }
-}
-
-pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoHmacCredential> {
-    let mut errs = Vec::new();
-    match get_devices()? {
-        ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
-        devs => {
-            for mut dev in devs.into_iter() {
-                match dev
-                    .make_hmac_credential_full(
-                        authenticator_rp(),
-                        authenticator_user(name),
-                        &[0u8; 32],
-                        &[],
-                        authenticator_options(),
-                    )
-                    .map(|cred| cred.into())
-                {
-                    //TODO: make credentials device specific
-                    Ok(cred) => {
-                        return Ok(cred);
-                    }
-                    Err(e) => {
-                        errs.push(e);
-                    }
-                }
-            }
-        }
-    }
-    Err(errs.pop().ok_or(Fido2LuksError::NoAuthenticatorError)?)?
-}
-
-pub fn perform_challenge(credential_id: &[u8], salt: &[u8; 32]) -> Fido2LuksResult<[u8; 32]> {
-    let cred = FidoHmacCredential {
-        id: credential_id.to_vec(),
-        rp_id: RP_ID.to_string(),
+pub fn perform_challenge(
+    credentials: &[&FidoCredential],
+    salt: &[u8; 32],
+    timeout: Duration,
+) -> Fido2LuksResult<[u8; 32]> {
+    let request = FidoAssertionRequestBuilder::default()
+        .rp_id(RP_ID)
+        .credentials(credentials)
+        .build()
+        .unwrap();
+    let get_assertion = |device: &mut FidoDevice| {
+        device.get_hmac_assertion(&request, &util::sha256(&[&salt[..]]), None)
     };
-    let mut errs = Vec::new();
-    match get_devices()? {
-        ref devs if devs.is_empty() => Err(Fido2LuksError::NoAuthenticatorError)?,
-        devs => {
-            for mut dev in devs.into_iter() {
-                match dev.get_hmac_assertion(&cred, &sha256(&[&salt[..]]), None, None) {
-                    Ok(secret) => {
-                        return Ok(secret.0);
-                    }
-                    Err(e) => {
-                        errs.push(e);
-                    }
-                }
-            }
-        }
-    }
-    Err(errs.pop().ok_or(Fido2LuksError::NoAuthenticatorError)?)?
+    let (_, (secret, _)) = request_multiple_devices(
+        get_devices()?
+            .iter_mut()
+            .map(|device| (device, &get_assertion)),
+        Some(timeout),
+    )?;
+    Ok(secret)
 }
 
 pub fn get_devices() -> Fido2LuksResult<Vec<FidoDevice>> {

@@ -34,7 +34,6 @@ pub fn add_key<P: AsRef<Path>>(
     iteration_time: Option<u64>,
 ) -> Fido2LuksResult<u32> {
     let mut device = load_device_handle(path)?;
-    // Set iteration time not sure wether this applies to luks2 as well
     if let Some(millis) = iteration_time {
         device.settings_handle().set_iteration_time(millis)
     }

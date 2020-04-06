@@ -9,7 +9,7 @@ Note: This has only been tested under Fedora 31 using a Solo Key, Trezor Model T
 ### Prerequisites
 
 ```
-dnf install cargo cryptsetup-devel -y
+dnf install clang cargo cryptsetup-devel -y
 ```
 
 ### Device

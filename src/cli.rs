@@ -300,8 +300,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             ref secret_gen,
             luks_settings,
         } => {
-            let old_secret = existing_secret.obtain(&secret_gen, false, "Existing password")?;
             let secret_gen = secret_gen.patch(&args, None);
+            let old_secret = existing_secret.obtain(&secret_gen, false, "Existing password")?;
             let secret = secret_gen.obtain_secret("Password")?;
             let added_slot = luks::add_key(
                 device.clone(),

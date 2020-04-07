@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 
-pub fn sha256<'a>(messages: &[&[u8]]) -> [u8; 32] {
+pub fn sha256(messages: &[&[u8]]) -> [u8; 32] {
     let mut digest = digest::Context::new(&digest::SHA256);
     for m in messages.iter() {
         digest.update(m);
@@ -23,7 +23,7 @@ pub fn read_password(q: &str, verify: bool) -> Fido2LuksResult<String> {
         {
             Err(Fido2LuksError::AskPassError {
                 cause: AskPassError::Mismatch,
-            })?
+            })
         }
         pass => Ok(pass),
     }

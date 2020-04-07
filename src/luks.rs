@@ -11,7 +11,7 @@ fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
         .into_iter()
         .fold(None, |res, format| match res {
             Some(Ok(())) => res,
-            Some(e) => Some(e.or(load(format))),
+            Some(e) => Some(e.or_else(|_| load(format))),
             None => Some(load(format)),
         })
         .unwrap()?;
@@ -58,9 +58,8 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
             }
             _ => (),
         }
-        match handle.status()? {
-            KeyslotInfo::ActiveLast => break,
-            _ => (),
+        if let KeyslotInfo::ActiveLast = handle.status()? {
+            break;
         }
     }
     Ok(destroyed)

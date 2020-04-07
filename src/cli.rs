@@ -138,7 +138,7 @@ impl SecretGeneration {
 
         while let Ok(el) = start.elapsed() {
             if el > timeout {
-                Err(error::Fido2LuksError::NoAuthenticatorError)?;
+                return Err(error::Fido2LuksError::NoAuthenticatorError);
             }
             if get_devices()
                 .map(|devices| !devices.is_empty())
@@ -287,9 +287,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 .patch(&args, Some(false))
                 .obtain_secret("Password")?;
             if *binary {
-                stdout.write(&secret[..])?;
+                stdout.write_all(&secret[..])?;
             } else {
-                stdout.write(hex::encode(&secret[..]).as_bytes())?;
+                stdout.write_all(hex::encode(&secret[..]).as_bytes())?;
             }
             Ok(stdout.flush()?)
         }
@@ -363,14 +363,11 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 {
                     Err(e) => {
                         match e {
-                            Fido2LuksError::WrongSecret if retries > 0 => (),
+                            Fido2LuksError::WrongSecret if retries > 0 => {}
                             Fido2LuksError::AuthenticatorError { ref cause }
-                                if cause.kind() == FidoErrorKind::Timeout && retries > 0 =>
-                            {
-                                ()
-                            }
+                                if cause.kind() == FidoErrorKind::Timeout && retries > 0 => {}
 
-                            e => break Err(e)?,
+                            e => return Err(e),
                         }
                         retries -= 1;
                         eprintln!("{}", e);

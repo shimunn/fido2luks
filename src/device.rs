@@ -7,7 +7,7 @@ use ctap::{
 };
 use std::time::Duration;
 
-const RP_ID: &'static str = "fido2luks";
+const RP_ID: &str = "fido2luks";
 
 pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoCredential> {
     let mut request = FidoCredentialRequestBuilder::default().rp_id(RP_ID);
@@ -52,7 +52,7 @@ pub fn get_devices() -> Fido2LuksResult<Vec<FidoDevice>> {
         match FidoDevice::new(&di) {
             Err(e) => match e.kind() {
                 FidoErrorKind::ParseCtap | FidoErrorKind::DeviceUnsupported => (),
-                err => Err(FidoError::from(err))?,
+                err => return Err(FidoError::from(err).into()),
             },
             Ok(dev) => devices.push(dev),
         }

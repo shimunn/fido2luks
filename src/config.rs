@@ -24,7 +24,7 @@ impl Default for InputSalt {
 
 impl From<&str> for InputSalt {
     fn from(s: &str) -> Self {
-        let mut parts = s.split(":").into_iter();
+        let mut parts = s.split(':');
         match parts.next() {
             Some("ask") | Some("Ask") => InputSalt::AskPassword,
             Some("file") => InputSalt::File {
@@ -87,6 +87,7 @@ impl InputSalt {
 #[derive(Debug, Clone)]
 pub enum PasswordHelper {
     Script(String),
+    #[allow(dead_code)]
     Systemd,
     Stdin,
 }
@@ -134,7 +135,7 @@ impl PasswordHelper {
             Systemd => unimplemented!(),
             Stdin => Ok(util::read_password("Password", true)?),
             Script(password_helper) => {
-                let mut helper_parts = password_helper.split(" ");
+                let mut helper_parts = password_helper.split(' ');
 
                 let password = Command::new((&mut helper_parts).next().unwrap())
                     .args(helper_parts)

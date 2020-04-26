@@ -247,9 +247,9 @@ dependencies = [
 
 [[package]]
 name = "ctap_hmac"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b22457233b74539c53c10658eb3effb7c3d50907276dab6b5fbd8391d2b4351"
+checksum = "c5fec79b66e3a7bc6a7ace0f4c98f0748892b36d3c5c317fadfce0344fd185dc"
 dependencies = [
  "byteorder",
  "cbor-codec",
@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "fido2luks"
-version = "0.2.6"
+version = "0.2.7"
 dependencies = [
  "ctap_hmac",
  "failure",

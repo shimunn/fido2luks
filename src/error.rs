@@ -13,11 +13,13 @@ pub enum Fido2LuksError {
     AuthenticatorError { cause: ctap::FidoError },
     #[fail(display = "no authenticator found, please ensure your device is plugged in")]
     NoAuthenticatorError,
-    #[fail(display = "luks err")]
-    LuksError {
+    #[fail(display = " {}", cause)]
+    CryptsetupError {
         cause: libcryptsetup_rs::LibcryptErr,
     },
-    #[fail(display = "no authenticator found, please ensure your device is plugged in")]
+    #[fail(display = "{}", cause)]
+    LuksError { cause: LuksError },
+    #[fail(display = "{}", cause)]
     IoError { cause: io::Error },
     #[fail(display = "supplied secret isn't valid for this device")]
     WrongSecret,
@@ -46,6 +48,14 @@ pub enum AskPassError {
     Mismatch,
 }
 
+#[derive(Debug, Fail)]
+pub enum LuksError {
+    #[fail(display = "This feature requires to the LUKS device to be formatted as LUKS 2")]
+    Luks2Required,
+    #[fail(display = "Invalid token: {}", _0)]
+    InvalidToken(String),
+}
+
 use libcryptsetup_rs::LibcryptErr;
 use std::string::FromUtf8Error;
 use Fido2LuksError::*;
@@ -62,7 +72,7 @@ impl From<LibcryptErr> for Fido2LuksError {
             LibcryptErr::IOError(e) if e.raw_os_error().iter().any(|code| code == &1i32) => {
                 WrongSecret
             }
-            _ => LuksError { cause: e },
+            _ => CryptsetupError { cause: e },
         }
     }
 }

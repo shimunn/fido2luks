@@ -120,6 +120,14 @@ impl SecretGeneration {
     }
 
     pub fn obtain_secret(&self, password_query: &str) -> Fido2LuksResult<[u8; 32]> {
+        self.obtain_secret_and_credential(password_query)
+            .map(|(secret, _)| secret)
+    }
+
+    pub fn obtain_secret_and_credential(
+        &self,
+        password_query: &str,
+    ) -> Fido2LuksResult<([u8; 32], FidoCredential)> {
         let mut salt = [0u8; 32];
         match self.password_helper {
             PasswordHelper::Stdin if !self.verify_password.unwrap_or(true) => {
@@ -158,10 +166,9 @@ impl SecretGeneration {
             })
             .collect::<Vec<_>>();
         let credentials = credentials.iter().collect::<Vec<_>>();
-        Ok(assemble_secret(
-            &perform_challenge(&credentials[..], &salt, timeout - start.elapsed().unwrap())?,
-            &salt,
-        ))
+        let (secret, credential) =
+            perform_challenge(&credentials[..], &salt, timeout - start.elapsed().unwrap())?;
+        Ok((assemble_secret(&secret, &salt), credential.clone()))
     }
 }
 
@@ -220,6 +227,9 @@ pub enum Command {
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
+        /// Will add an token to your LUKS 2 header, including the credential id
+        #[structopt(short = "t", long = "token")]
+        token: bool,
         #[structopt(flatten)]
         existing_secret: OtherSecret,
         #[structopt(flatten)]
@@ -235,6 +245,9 @@ pub enum Command {
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
+        // /// Will add an token to your LUKS 2 header, including the credential id
+        // #[structopt(short = "t", long = "token")]
+        //  token: bool,
         #[structopt(flatten)]
         replacement: OtherSecret,
         #[structopt(flatten)]
@@ -296,18 +309,20 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::AddKey {
             device,
             exclusive,
+            token,
             existing_secret,
             ref secret_gen,
             luks_settings,
         } => {
             let secret_gen = secret_gen.patch(&args, None);
             let old_secret = existing_secret.obtain(&secret_gen, false, "Existing password")?;
-            let secret = secret_gen.obtain_secret("Password")?;
+            let (secret, credential) = secret_gen.obtain_secret_and_credential("Password")?;
             let added_slot = luks::add_key(
                 device.clone(),
                 &secret,
                 &old_secret[..],
                 luks_settings.kdf_time.or(Some(10)),
+                Some(&credential.id[..]).filter(|_| *token),
             )?;
             if *exclusive {
                 let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
@@ -329,6 +344,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         Command::ReplaceKey {
             device,
             add_password,
+            //token,
             replacement,
             ref secret_gen,
             luks_settings,
@@ -337,9 +353,21 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             let secret = secret_gen.obtain_secret("Password")?;
             let new_secret = replacement.obtain(&secret_gen, true, "Replacement password")?;
             let slot = if *add_password {
-                luks::add_key(device, &new_secret[..], &secret, luks_settings.kdf_time)
+                luks::add_key(
+                    device,
+                    &new_secret[..],
+                    &secret,
+                    luks_settings.kdf_time,
+                    None,
+                )
             } else {
-                luks::replace_key(device, &new_secret[..], &secret, luks_settings.kdf_time)
+                luks::replace_key(
+                    device,
+                    &new_secret[..],
+                    &secret,
+                    luks_settings.kdf_time,
+                    None,
+                )
             }?;
             println!(
                 "Added to password to device {}, slot: {}",

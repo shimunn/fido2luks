@@ -21,6 +21,9 @@ failure = "0.1.5"
 rpassword = "4.0.1"
 structopt = "0.3.2"
 libcryptsetup-rs = "0.2.0"
+serde_json = "1.0.51"
+serde_derive = "1.0.106"
+serde = "1.0.106"
 
 [profile.release]
 lto = true

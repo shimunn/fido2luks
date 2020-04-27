@@ -24,11 +24,11 @@ pub fn make_credential_id(name: Option<&str>) -> Fido2LuksResult<FidoCredential>
     )?)
 }
 
-pub fn perform_challenge(
-    credentials: &[&FidoCredential],
+pub fn perform_challenge<'a>(
+    credentials: &'a [&'a FidoCredential],
     salt: &[u8; 32],
     timeout: Duration,
-) -> Fido2LuksResult<[u8; 32]> {
+) -> Fido2LuksResult<([u8; 32], &'a FidoCredential)> {
     let request = FidoAssertionRequestBuilder::default()
         .rp_id(RP_ID)
         .credentials(credentials)
@@ -37,13 +37,13 @@ pub fn perform_challenge(
     let get_assertion = |device: &mut FidoDevice| {
         device.get_hmac_assertion(&request, &util::sha256(&[&salt[..]]), None)
     };
-    let (_, (secret, _)) = request_multiple_devices(
+    let (credential, (secret, _)) = request_multiple_devices(
         get_devices()?
             .iter_mut()
             .map(|device| (device, &get_assertion)),
         Some(timeout),
     )?;
-    Ok(secret)
+    Ok((secret, credential))
 }
 
 pub fn get_devices() -> Fido2LuksResult<Vec<FidoDevice>> {

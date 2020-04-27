@@ -1,20 +1,12 @@
 use crate::error::*;
 
-use libcryptsetup_rs::{CryptActivateFlags, CryptDevice, CryptInit, EncryptionFormat, KeyslotInfo};
+use libcryptsetup_rs::{CryptActivateFlags, CryptDevice, CryptInit, KeyslotInfo};
 use std::path::Path;
 
 fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
     let mut device = CryptInit::init(path.as_ref())?;
-    //TODO: determine luks version some way other way than just trying
-    let mut load = |format| device.context_handle().load::<()>(format, None).map(|_| ());
-    vec![EncryptionFormat::Luks2, EncryptionFormat::Luks1]
-        .into_iter()
-        .fold(None, |res, format| match res {
-            Some(Ok(())) => res,
-            Some(e) => Some(e.or_else(|_| load(format))),
-            None => Some(load(format)),
-        })
-        .unwrap()?;
+    let format = device.format_handle().get_type()?;
+    device.context_handle().load::<()>(format, None).map(|_| ())?;
     Ok(device)
 }
 

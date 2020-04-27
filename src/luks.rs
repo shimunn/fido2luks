@@ -1,15 +1,13 @@
 use crate::error::*;
 
 use failure::{Fail, ResultExt};
-use libcryptsetup_rs::{
-    CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo, EncryptionFormat, KeyslotInfo,
-};
+use libcryptsetup_rs::{CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo, EncryptionFormat, KeyslotInfo, CryptLuks2Token, LibcryptErr};
 use std::path::Path;
 
 fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
     let mut device = CryptInit::init(path.as_ref())?;
     //TODO: determine luks version some way other way than just trying
-    let mut load = |format| device.context_handle().load::<()>(format, None).map(|_| ());
+    let mut load = |format| device.context_handle().load::<()>(Some(format), None).map(|_| ());
     vec![EncryptionFormat::Luks2, EncryptionFormat::Luks1]
         .into_iter()
         .fold(None, |res, format| match res {
@@ -22,12 +20,13 @@ fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
 }
 
 fn check_luks2(device: &mut CryptDevice) -> Fido2LuksResult<()> {
-    match device.format_handle().get_type()? {
+    Ok(())
+   /* match device.format_handle().get_type()? {
         EncryptionFormat::Luks2 => Ok(()),
-        other => Err(Fido2LuksError::LuksError {
+        _ => Err(Fido2LuksError::LuksError {
             cause: LuksError::Luks2Required,
         }),
-    }
+    }*/
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +59,10 @@ pub fn open_container<P: AsRef<Path>>(path: P, name: &str, secret: &[u8]) -> Fid
 /*pub fn open_container_token<P: AsRef<Path>>(path: P, name: &str, secret: &[u8]) -> Fido2LuksResult<()> {
     let mut device = load_device_handle(path)?;
     check_luks2(&mut device)?;
+    fn open_token(mut device: CryptDevice, token: u32, ptr: &()) -> Result<Box<[u8]>, LibcryptErr> {
+
+    }
+    CryptLuks2Token::register("fido2luks", c_token_handler_open!(ext_open_token,(), open_token),)
     unimplemented!()
 }*/
 
@@ -75,8 +78,8 @@ pub fn add_key<P: AsRef<Path>>(
         device.settings_handle().set_iteration_time(millis)
     }
     let slot = device
-        .keyslot_handle(None)
-        .add_by_passphrase(old_secret, secret)?;
+        .keyslot_handle()
+        .add_by_passphrase(None,old_secret, secret)?;
     if let Some(id) = credential_id {
       /*  if let e @ Err(_) = check_luks2(&mut device) {
             //rollback
@@ -85,7 +88,7 @@ pub fn add_key<P: AsRef<Path>>(
         }*/
         device.token_handle().json_set(
             None,
-            &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
+            Some(&serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap()),
         )?;
     }
 
@@ -101,7 +104,11 @@ fn find_token(
         if status == CryptTokenInfo::Inactive {
             break;
         }
-        if type_ != "fido2luks" {
+        if let Some(s) = type_ {
+            if &s != "fido2luks" {
+                continue;
+            }
+        } else {
             continue;
         }
         let json = device.token_handle().json_get(i)?;
@@ -113,37 +120,42 @@ fn find_token(
             return Ok(Some((i, info)));
         }
     }
-    Ok((None))
+    Ok(None)
 }
 
 fn remove_token(device: &mut CryptDevice, slot: u32) -> Fido2LuksResult<()> {
     if let Some((token, _)) = find_token(device, slot)? {
         // remove API??
-        // device.token_handle()
+       device.token_handle().json_set(Some(token), None)?;
     }
     Ok(())
 }
 
 pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksResult<u32> {
     let mut device = load_device_handle(path)?;
-    let mut handle;
     let mut destroyed = 0;
-    //TODO: detect how many keyslots there are instead of trying within a given range
-    for slot in 0..1024 {
-        handle = device.keyslot_handle(Some(slot));
-        let last = KeyslotInfo::ActiveLast == handle.status()?;
-        match handle.status()? {
+    let mut tokens = Vec::new();
+    for slot in 0..256 {
+        match device.keyslot_handle().status(slot)? {
             KeyslotInfo::Inactive => continue,
-            KeyslotInfo::Active if !exclude.contains(&slot) => {
-                handle.destroy()?;
-                remove_token(&mut device, slot)?;
-                destroyed += 1;
+             KeyslotInfo::Active |  KeyslotInfo::ActiveLast if !exclude.contains(&slot) => {
+                if let Ok(_) = check_luks2(&mut device) {
+                    if let Some((token,_)) = dbg!(find_token(&mut device, slot))? {
+                        tokens.push(token);
+                    }
+                }
+                 device.keyslot_handle().destroy(slot)?;
+                 destroyed += 1;
             }
+            KeyslotInfo::ActiveLast => break,
             _ => (),
         }
-        if last {
+        if device.keyslot_handle().status(slot)? == KeyslotInfo::ActiveLast {
             break;
         }
+    }
+    for token in tokens.iter() {
+        device.token_handle().json_set(Some(*token), None)?;
     }
     Ok(destroyed)
 }
@@ -161,14 +173,14 @@ pub fn replace_key<P: AsRef<Path>>(
         device.settings_handle().set_iteration_time(millis)
     }
     let slot = device
-        .keyslot_handle(None)
+        .keyslot_handle()
         .change_by_passphrase(None, None, old_secret, secret)? as u32;
     if let Some(id) = credential_id {
         if check_luks2(&mut device).is_ok() {
             let token = find_token(&mut device, slot)?.map(|(t, _)| t);
             device.token_handle().json_set(
                 token,
-                &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
+                Some(&serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap()),
             )?;
         }
     }

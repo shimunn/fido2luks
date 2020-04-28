@@ -417,7 +417,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             device,
             &name[..],
             Box::new(|mut creds| {
-                let secret = SecretGeneration {
+                let (secret, cred) = SecretGeneration {
                     credential_ids: CommaSeparated(
                         creds
                             .iter()
@@ -429,8 +429,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     await_authenticator: 100,
                     verify_password: None,
                 }
-                .obtain_secret("Password");
-                secret.map(|s| s.to_vec().into_boxed_slice())
+                .obtain_secret_and_credential("Password")?;
+                Ok((secret, hex::encode(cred.id)))
             }),
         ),
         Command::Connected => match get_devices() {

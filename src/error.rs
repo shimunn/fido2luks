@@ -56,9 +56,27 @@ pub enum LuksError {
     InvalidToken(String),
     #[fail(display = "No token found")]
     NoToken,
+    #[fail(display = "The device already exists")]
+    DeviceExists,
+}
+
+impl LuksError {
+    pub fn activate(e: LibcryptErr) -> Fido2LuksError {
+        match e {
+            LibcryptErr::IOError(ref io) => match io.raw_os_error() {
+                Some(1) if io.kind() == ErrorKind::PermissionDenied => Fido2LuksError::WrongSecret,
+                Some(17) => Fido2LuksError::LuksError {
+                    cause: LuksError::DeviceExists,
+                },
+                _ => return Fido2LuksError::CryptsetupError { cause: e },
+            },
+            _ => Fido2LuksError::CryptsetupError { cause: e },
+        }
+    }
 }
 
 use libcryptsetup_rs::LibcryptErr;
+use std::io::ErrorKind;
 use std::string::FromUtf8Error;
 use Fido2LuksError::*;
 

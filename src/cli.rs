@@ -267,6 +267,15 @@ pub enum Command {
         #[structopt(flatten)]
         secret_gen: SecretGeneration,
     },
+    /// Open the LUKS device using information embedded into the LUKS 2 header
+    #[structopt(name = "open-token")]
+    OpenToken {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
+        name: String,
+        salt: String,
+    },
     /// Generate a new FIDO credential
     #[structopt(name = "credential")]
     Credential {
@@ -404,6 +413,26 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             }
         }
+        Command::OpenToken { device, name, salt } => luks::open_container_token(
+            device,
+            &name[..],
+            Box::new(|mut creds| {
+                let secret = SecretGeneration {
+                    credential_ids: CommaSeparated(
+                        creds
+                            .iter()
+                            .map(|c| HexEncoded::from_str(&c[..]).unwrap())
+                            .collect(),
+                    ),
+                    salt: InputSalt::String("".into()),
+                    password_helper: Default::default(),
+                    await_authenticator: 100,
+                    verify_password: None,
+                }
+                .obtain_secret("Password");
+                secret.map(|s| s.to_vec().into_boxed_slice())
+            }),
+        ),
         Command::Connected => match get_devices() {
             Ok(ref devs) if !devs.is_empty() => {
                 println!("Found {} devices", devs.len());

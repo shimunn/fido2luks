@@ -54,6 +54,8 @@ pub enum LuksError {
     Luks2Required,
     #[fail(display = "Invalid token: {}", _0)]
     InvalidToken(String),
+    #[fail(display = "No token found")]
+    NoToken,
 }
 
 use libcryptsetup_rs::LibcryptErr;

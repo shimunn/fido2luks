@@ -84,7 +84,7 @@ impl InputSalt {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PasswordHelper {
     Script(String),
     #[allow(dead_code)]

@@ -29,6 +29,10 @@ pub fn read_password(q: &str, verify: bool) -> Fido2LuksResult<String> {
     }
 }
 
+pub fn read_password_hashed(q: &str, verify: bool) -> Fido2LuksResult<[u8; 32]> {
+    read_password(q, verify).map(|pass| sha256(&[pass.as_bytes()]))
+}
+
 pub fn read_keyfile<P: Into<PathBuf>>(path: P) -> Fido2LuksResult<Vec<u8>> {
     let mut file = File::open(path.into())?;
     let mut key = Vec::new();

@@ -243,14 +243,15 @@ pub enum Command {
     Open {
         #[structopt(flatten)]
         luks: LuksParameters,
+        #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
+        name: String,
         #[structopt(flatten)]
         credentials: Credentials,
         #[structopt(flatten)]
         authenticator: AuthenticatorParameters,
         #[structopt(flatten)]
         secret: SecretParameters,
-        #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
-        name: String,
+
         #[structopt(short = "r", long = "max-retries", default_value = "0")]
         retries: i32,
     },

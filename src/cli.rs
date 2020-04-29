@@ -76,6 +76,9 @@ pub struct AuthenticatorParameters {
 pub struct LuksParameters {
     #[structopt(env = "FIDO2LUKS_DEVICE")]
     device: PathBuf,
+
+    #[structopt(long = "slot", env = "FIDO2LUKS_DEVICE_SLOT")]
+    slot_hint: Option<u32>,
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -461,7 +464,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     &salt("Password", false)?,
                     authenticator.await_time,
                 )
-                .and_then(|secret| luks::open_container(&luks.device, &name, &secret))
+                .and_then(|secret| luks::open_container(&luks.device, &name, &secret, luks.slot_hint))
                 {
                     Err(e) => {
                         match e {

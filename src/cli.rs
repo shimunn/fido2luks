@@ -329,77 +329,18 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             authenticator,
             credentials,
             secret,
-            exclusive,
-            existing_secret,
             luks_mod,
-        } => {
-            let pin = if authenticator.pin {
-                Some(read_pin()?)
-            } else {
-                None
-            };
-            let salt = |q: &str, verify: bool| -> Fido2LuksResult<[u8; 32]> {
-                if interactive || secret.password_helper == PasswordHelper::Stdin {
-                    util::read_password_hashed(q, verify)
-                } else {
-                    secret.salt.obtain(&secret.password_helper)
-                }
-            };
-            let old_secret = match existing_secret {
-                OtherSecret {
-                    keyfile: Some(file),
-                    ..
-                } => util::read_keyfile(file)?,
-                OtherSecret {
-                    fido_device: true, ..
-                } => derive_secret(
-                    &credentials.ids.0,
-                    &salt("Existing password", false)?,
-                    authenticator.await_time,
-                    pin.as_deref(),
-                )?[..]
-                    .to_vec(),
-                _ => util::read_password("Existing password", false)?
-                    .as_bytes()
-                    .to_vec(),
-            };
-            let secret = derive_secret(
-                &credentials.ids.0,
-                &salt("Password", false)?,
-                authenticator.await_time,
-                pin.as_deref(),
-            )?;
-            let added_slot = luks::add_key(
-                &luks.device,
-                &secret,
-                &old_secret[..],
-                luks_mod.kdf_time.or(Some(10)),
-            )?;
-            if *exclusive {
-                let destroyed = luks::remove_keyslots(&luks.device, &[added_slot])?;
-                println!(
-                    "Added to key to device {}, slot: {}\nRemoved {} old keys",
-                    luks.device.display(),
-                    added_slot,
-                    destroyed
-                );
-            } else {
-                println!(
-                    "Added to key to device {}, slot: {}",
-                    luks.device.display(),
-                    added_slot
-                );
-            }
-            Ok(())
+            existing_secret: other_secret,
+            ..
         }
-        Command::ReplaceKey {
+        | Command::ReplaceKey {
             luks,
             authenticator,
             credentials,
             secret,
-            add_password,
-            replacement,
             luks_mod,
+            replacement: other_secret,
+            ..
         } => {
             let pin = if authenticator.pin {
                 Some(read_pin()?)
@@ -413,51 +354,87 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     secret.salt.obtain(&secret.password_helper)
                 }
             };
-            let replacement_secret = match replacement {
-                OtherSecret {
-                    keyfile: Some(file),
-                    ..
-                } => util::read_keyfile(file)?,
-                OtherSecret {
-                    fido_device: true, ..
-                } => derive_secret(
+            let other_secret = |salt_q: &str, verify: bool| -> Fido2LuksResult<Vec<u8>> {
+                match other_secret {
+                    OtherSecret {
+                        keyfile: Some(file),
+                        ..
+                    } => util::read_keyfile(file),
+                    OtherSecret {
+                        fido_device: true, ..
+                    } => Ok(derive_secret(
+                        &credentials.ids.0,
+                        &salt(salt_q, verify)?,
+                        authenticator.await_time,
+                        pin.as_deref(),
+                    )?[..]
+                        .to_vec()),
+                    _ => Ok(util::read_password(salt_q, verify)?.as_bytes().to_vec()),
+                }
+            };
+            let secret = |verify: bool| -> Fido2LuksResult<[u8; 32]> {
+                derive_secret(
                     &credentials.ids.0,
-                    &salt("Replacement password", true)?,
+                    &salt("Password", verify)?,
                     authenticator.await_time,
                     pin.as_deref(),
-                )?[..]
-                    .to_vec(),
-                _ => util::read_password("Replacement password", true)?
-                    .as_bytes()
-                    .to_vec(),
+                )
             };
-            let existing_secret = derive_secret(
-                &credentials.ids.0,
-                &salt("Password", false)?,
-                authenticator.await_time,
-                pin.as_deref(),
-            )?;
-            let slot = if *add_password {
-                luks::add_key(
-                    &luks.device,
-                    &replacement_secret[..],
-                    &existing_secret,
-                    luks_mod.kdf_time,
-                )
-            } else {
-                luks::replace_key(
-                    &luks.device,
-                    &replacement_secret[..],
-                    &existing_secret,
-                    luks_mod.kdf_time,
-                )
-            }?;
-            println!(
-                "Added to password to device {}, slot: {}",
-                luks.device.display(),
-                slot
-            );
-            Ok(())
+            // Non overlap
+            match &args.command {
+                Command::AddKey { exclusive, .. } => {
+                    let existing_secret = other_secret("Current password", false)?;
+                    let new_secret = secret(true)?;
+                    let added_slot = luks::add_key(
+                        &luks.device,
+                        &new_secret,
+                        &existing_secret[..],
+                        luks_mod.kdf_time.or(Some(10)),
+                    )?;
+                    if *exclusive {
+                        let destroyed = luks::remove_keyslots(&luks.device, &[added_slot])?;
+                        println!(
+                            "Added to key to device {}, slot: {}\nRemoved {} old keys",
+                            luks.device.display(),
+                            added_slot,
+                            destroyed
+                        );
+                    } else {
+                        println!(
+                            "Added to key to device {}, slot: {}",
+                            luks.device.display(),
+                            added_slot
+                        );
+                    }
+                    Ok(())
+                }
+                Command::ReplaceKey { add_password, .. } => {
+                    let existing_secret = secret(false)?;
+                    let replacement_secret = other_secret("Replacement password", true)?;
+                    let slot = if *add_password {
+                        luks::add_key(
+                            &luks.device,
+                            &replacement_secret[..],
+                            &existing_secret,
+                            luks_mod.kdf_time,
+                        )
+                    } else {
+                        luks::replace_key(
+                            &luks.device,
+                            &replacement_secret[..],
+                            &existing_secret,
+                            luks_mod.kdf_time,
+                        )
+                    }?;
+                    println!(
+                        "Added to password to device {}, slot: {}",
+                        luks.device.display(),
+                        slot
+                    );
+                    Ok(())
+                }
+                _ => unreachable!(),
+            }
         }
         Command::Open {
             luks,

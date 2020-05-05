@@ -1,13 +1,11 @@
 use crate::error::*;
 
-use failure::{Fail, ResultExt};
 use libcryptsetup_rs::{
-    size_t, CryptActivateFlags, CryptDevice, CryptInit, CryptLuks2Token, CryptTokenInfo,
-    EncryptionFormat, KeyslotInfo, LibcryptErr,
+    CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo, EncryptionFormat, KeyslotInfo,
+    TokenInput,
 };
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::result::Result;
 
 fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
     let mut device = CryptInit::init(path.as_ref())?;
@@ -30,13 +28,12 @@ fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
 }
 
 fn check_luks2(device: &mut CryptDevice) -> Fido2LuksResult<()> {
-    Ok(())
-    /* match device.format_handle().get_type()? {
+    match device.format_handle().get_type()? {
         EncryptionFormat::Luks2 => Ok(()),
         _ => Err(Fido2LuksError::LuksError {
             cause: LuksError::Luks2Required,
         }),
-    }*/
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -69,24 +66,26 @@ pub fn open_container<P: AsRef<Path>>(path: P, name: &str, secret: &[u8]) -> Fid
 pub fn open_container_token<P: AsRef<Path>>(
     path: P,
     name: &str,
-    mut secret: Box<Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>>,
+    secret: Box<dyn Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>>,
 ) -> Fido2LuksResult<()> {
     let mut device = load_device_handle(path)?;
     check_luks2(&mut device)?;
 
     let mut creds = HashMap::new();
     for i in 0..256 {
-        let (status, type_) = device.token_handle().status(i)?;
-        if status == CryptTokenInfo::Inactive {
-            break;
-        }
-        if let Some(s) = type_ {
-            if &s != "fido2luks" {
-                continue;
+        let status = device.token_handle().status(i)?;
+        match status {
+            CryptTokenInfo::Inactive => break,
+            CryptTokenInfo::Internal(s)
+            | CryptTokenInfo::InternalUnknown(s)
+            | CryptTokenInfo::ExternalUnknown(s)
+            | CryptTokenInfo::External(s)
+                if &s != "fido2luks" =>
+            {
+                continue
             }
-        } else {
-            continue;
-        }
+            _ => (),
+        };
         let json = device.token_handle().json_get(i)?;
         let info: Fido2LuksToken =
             serde_json::from_value(json.clone()).map_err(|_| Fido2LuksError::LuksError {
@@ -104,10 +103,14 @@ pub fn open_container_token<P: AsRef<Path>>(
                 .extend(slots());
         }
     }
-    let (secret, credential) = secret(dbg!(creds.keys().cloned().collect()))?;
-
+    if creds.is_empty() {
+        return Err(Fido2LuksError::LuksError {
+            cause: LuksError::NoToken,
+        });
+    }
+    let (secret, credential) = secret(creds.keys().cloned().collect())?;
     let slots = creds.get(&credential).unwrap();
-    let mut slots = slots
+    let slots = slots
         .iter()
         .cloned()
         .map(Option::Some)
@@ -146,10 +149,9 @@ pub fn add_key<P: AsRef<Path>>(
             device.keyslot_handle(Some(slot)).destroy()?;
             return e.map(|_| 0u32);
         }*/
-        device.token_handle().json_set(
-            None,
-            Some(&serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap()),
-        )?;
+        device.token_handle().json_set(TokenInput::AddToken(
+            &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
+        ))?;
     }
 
     Ok(slot)
@@ -160,17 +162,19 @@ fn find_token(
     slot: u32,
 ) -> Fido2LuksResult<Option<(u32, Fido2LuksToken)>> {
     for i in 0..256 {
-        let (status, type_) = device.token_handle().status(i)?;
-        if status == CryptTokenInfo::Inactive {
-            break;
-        }
-        if let Some(s) = type_ {
-            if &s != "fido2luks" {
-                continue;
+        let status = device.token_handle().status(i)?;
+        match status {
+            CryptTokenInfo::Inactive => break,
+            CryptTokenInfo::Internal(s)
+            | CryptTokenInfo::InternalUnknown(s)
+            | CryptTokenInfo::ExternalUnknown(s)
+            | CryptTokenInfo::External(s)
+                if &s != "fido2luks" =>
+            {
+                continue
             }
-        } else {
-            continue;
-        }
+            _ => (),
+        };
         let json = device.token_handle().json_get(i)?;
         let info: Fido2LuksToken =
             serde_json::from_value(json.clone()).map_err(|_| Fido2LuksError::LuksError {
@@ -181,14 +185,6 @@ fn find_token(
         }
     }
     Ok(None)
-}
-
-fn remove_token(device: &mut CryptDevice, slot: u32) -> Fido2LuksResult<()> {
-    if let Some((token, _)) = find_token(device, slot)? {
-        // remove API??
-        device.token_handle().json_set(Some(token), None)?;
-    }
-    Ok(())
 }
 
 pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksResult<u32> {
@@ -215,7 +211,9 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
         }
     }
     for token in tokens.iter() {
-        device.token_handle().json_set(Some(*token), None)?;
+        device
+            .token_handle()
+            .json_set(TokenInput::RemoveToken(*token))?;
     }
     Ok(destroyed)
 }
@@ -238,10 +236,12 @@ pub fn replace_key<P: AsRef<Path>>(
     if let Some(id) = credential_id {
         if check_luks2(&mut device).is_ok() {
             let token = find_token(&mut device, slot)?.map(|(t, _)| t);
-            device.token_handle().json_set(
-                token,
-                Some(&serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap()),
-            )?;
+            if let Some(token) = token {
+                device.token_handle().json_set(TokenInput::ReplaceToken(
+                    token,
+                    &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
+                ))?;
+            }
         }
     }
     Ok(slot)

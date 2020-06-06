@@ -413,10 +413,15 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             }
         }
-        Command::OpenToken { device, name, salt } => luks::open_container_token(
+        // TODO: utilise salt
+        Command::OpenToken {
+            device,
+            name,
+            salt: _,
+        } => luks::open_container_token(
             device,
             &name[..],
-            Box::new(|mut creds| {
+            Box::new(|creds| {
                 let (secret, cred) = SecretGeneration {
                     credential_ids: CommaSeparated(
                         creds

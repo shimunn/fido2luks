@@ -3,8 +3,6 @@ extern crate failure;
 extern crate ctap_hmac as ctap;
 #[macro_use]
 extern crate serde_derive;
-#[macro_use]
-extern crate libcryptsetup_rs;
 use crate::cli::*;
 use crate::config::*;
 use crate::device::*;

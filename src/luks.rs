@@ -9,21 +9,7 @@ use std::path::Path;
 
 fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
     let mut device = CryptInit::init(path.as_ref())?;
-    //TODO: determine luks version some way other way than just trying
-    let mut load = |format| {
-        device
-            .context_handle()
-            .load::<()>(Some(format), None)
-            .map(|_| ())
-    };
-    vec![EncryptionFormat::Luks2, EncryptionFormat::Luks1]
-        .into_iter()
-        .fold(None, |res, format| match res {
-            Some(Ok(())) => res,
-            Some(e) => Some(e.or_else(|_| load(format))),
-            None => Some(load(format)),
-        })
-        .unwrap()?;
+    device.context_handle().load::<()>(None, None)?;
     Ok(device)
 }
 

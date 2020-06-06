@@ -256,7 +256,7 @@ pub enum Command {
         #[structopt(short = "r", long = "max-retries", default_value = "0")]
         retries: i32,
     },
-    /// Open the LUKS device using information embedded into the LUKS 2 header
+    /// Open the LUKS device using credentials embedded in the LUKS 2 header
     #[structopt(name = "open-token")]
     OpenToken {
         #[structopt(flatten)]

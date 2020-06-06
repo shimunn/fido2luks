@@ -40,11 +40,16 @@ impl Fido2LuksToken {
     }
 }
 
-pub fn open_container<P: AsRef<Path>>(path: P, name: &str, secret: &[u8]) -> Fido2LuksResult<()> {
+pub fn open_container<P: AsRef<Path>>(
+    path: P,
+    name: &str,
+    secret: &[u8],
+    slot_hint: Option<u32>,
+) -> Fido2LuksResult<()> {
     let mut device = load_device_handle(path)?;
     device
         .activate_handle()
-        .activate_by_passphrase(Some(name), None, secret, CryptActivateFlags::empty())
+        .activate_by_passphrase(Some(name), slot_hint, secret, CryptActivateFlags::empty())
         .map(|_slot| ())
         .map_err(|_e| Fido2LuksError::WrongSecret)
 }
@@ -52,7 +57,7 @@ pub fn open_container<P: AsRef<Path>>(path: P, name: &str, secret: &[u8]) -> Fid
 pub fn open_container_token<P: AsRef<Path>>(
     path: P,
     name: &str,
-    secret: Box<dyn Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>>,
+    secret: impl Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>,
 ) -> Fido2LuksResult<()> {
     let mut device = load_device_handle(path)?;
     check_luks2(&mut device)?;

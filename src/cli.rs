@@ -12,7 +12,8 @@ use std::io::Write;
 use std::process::exit;
 use std::thread;
 
-use crate::util::read_password;
+use crate::util::sha256;
+use std::borrow::Cow;
 use std::time::SystemTime;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -57,19 +58,48 @@ impl<T: Display + FromStr> FromStr for CommaSeparated<T> {
 }
 
 #[derive(Debug, StructOpt)]
-pub struct Args {
-    /// Request passwords via Stdin instead of using the password helper
-    #[structopt(short = "i", long = "interactive")]
-    pub interactive: bool,
-    #[structopt(subcommand)]
-    pub command: Command,
+pub struct Credentials {
+    /// FIDO credential ids, seperated by ',' generate using fido2luks credential
+    #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
+    pub ids: CommaSeparated<HexEncoded>,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct AuthenticatorParameters {
+    /// Request a PIN to unlock the authenticator
+    #[structopt(short = "P", long = "pin")]
+    pub pin: bool,
+
+    /// Await for an authenticator to be connected, timeout after n seconds
+    #[structopt(
+        long = "await-dev",
+        name = "await-dev",
+        env = "FIDO2LUKS_DEVICE_AWAIT",
+        default_value = "15"
+    )]
+    pub await_time: u64,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct LuksParameters {
+    #[structopt(env = "FIDO2LUKS_DEVICE")]
+    device: PathBuf,
+
+    /// Try to unlock the device using a specifc keyslot, ignore all other slots
+    #[structopt(long = "slot", env = "FIDO2LUKS_DEVICE_SLOT")]
+    slot: Option<u32>,
 }
 
 #[derive(Debug, StructOpt, Clone)]
-pub struct SecretGeneration {
-    /// FIDO credential ids, seperated by ',' generate using fido2luks credential
-    #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
-    pub credential_ids: CommaSeparated<HexEncoded>,
+pub struct LuksModParameters {
+    /// Number of milliseconds required to derive the volume decryption key
+    /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
+    #[structopt(long = "kdf-time", name = "kdf-time")]
+    kdf_time: Option<u64>,
+}
+
+#[derive(Debug, StructOpt)]
+pub struct SecretParameters {
     /// Salt for secret generation, defaults to 'ask'
     ///
     /// Options:{n}
@@ -90,94 +120,55 @@ pub struct SecretGeneration {
         default_value = "/usr/bin/env systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
     )]
     pub password_helper: PasswordHelper,
-
-    /// Await for an authenticator to be connected, timeout after n seconds
-    #[structopt(
-        long = "await-dev",
-        name = "await-dev",
-        env = "FIDO2LUKS_DEVICE_AWAIT",
-        default_value = "15"
-    )]
-    pub await_authenticator: u64,
-
-    /// Request the password twice to ensure it being correct
-    #[structopt(
-        long = "verify-password",
-        env = "FIDO2LUKS_VERIFY_PASSWORD",
-        hidden = true
-    )]
-    pub verify_password: Option<bool>,
 }
 
-impl SecretGeneration {
-    pub fn patch(&self, args: &Args, verify_password: Option<bool>) -> Self {
-        let mut me = self.clone();
-        if args.interactive {
-            me.password_helper = PasswordHelper::Stdin;
+fn derive_secret(
+    credentials: &[HexEncoded],
+    salt: &[u8; 32],
+    timeout: u64,
+    pin: Option<&str>,
+) -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+    let timeout = Duration::from_secs(timeout);
+    let start = SystemTime::now();
+
+    while let Ok(el) = start.elapsed() {
+        if el > timeout {
+            return Err(error::Fido2LuksError::NoAuthenticatorError);
         }
-        me.verify_password = me.verify_password.or(verify_password);
-        me
+        if get_devices()
+            .map(|devices| !devices.is_empty())
+            .unwrap_or(false)
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(500));
     }
 
-    pub fn obtain_secret(&self, password_query: &str) -> Fido2LuksResult<[u8; 32]> {
-        self.obtain_secret_and_credential(password_query)
-            .map(|(secret, _)| secret)
-    }
+    let credentials = credentials
+        .iter()
+        .map(|hex| FidoCredential {
+            id: hex.0.clone(),
+            public_key: None,
+        })
+        .collect::<Vec<_>>();
+    let credentials = credentials.iter().collect::<Vec<_>>();
+    let (unsalted, cred) =
+        perform_challenge(&credentials, salt, timeout - start.elapsed().unwrap(), pin)?;
 
-    pub fn obtain_secret_and_credential(
-        &self,
-        password_query: &str,
-    ) -> Fido2LuksResult<([u8; 32], FidoCredential)> {
-        let mut salt = [0u8; 32];
-        match self.password_helper {
-            PasswordHelper::Stdin if !self.verify_password.unwrap_or(true) => {
-                salt.copy_from_slice(&util::sha256(&[&read_password(
-                    password_query,
-                    self.verify_password.unwrap_or(true),
-                )?
-                .as_bytes()[..]]));
-            }
-            _ => {
-                salt = self.salt.obtain(&self.password_helper)?;
-            }
-        }
-        let timeout = Duration::from_secs(self.await_authenticator);
-        let start = SystemTime::now();
-
-        while let Ok(el) = start.elapsed() {
-            if el > timeout {
-                return Err(error::Fido2LuksError::NoAuthenticatorError);
-            }
-            if get_devices()
-                .map(|devices| !devices.is_empty())
-                .unwrap_or(false)
-            {
-                break;
-            }
-            thread::sleep(Duration::from_millis(500));
-        }
-        let credentials = &self
-            .credential_ids
-            .0
-            .iter()
-            .map(|HexEncoded(id)| FidoCredential {
-                id: id.to_vec(),
-                public_key: None,
-            })
-            .collect::<Vec<_>>();
-        let credentials = credentials.iter().collect::<Vec<_>>();
-        let (secret, credential) =
-            perform_challenge(&credentials[..], &salt, timeout - start.elapsed().unwrap())?;
-        Ok((assemble_secret(&secret, &salt), credential.clone()))
-    }
+    Ok((sha256(&[&unsalted[..], salt]), cred.clone()))
 }
 
-#[derive(Debug, StructOpt, Clone)]
-pub struct LuksSettings {
-    /// Number of milliseconds required to derive the volume decryption key
-    /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
-    #[structopt(long = "kdf-time", name = "kdf-time")]
-    kdf_time: Option<u64>,
+fn read_pin() -> Fido2LuksResult<String> {
+    util::read_password("Authenticator PIN", false)
+}
+
+#[derive(Debug, StructOpt)]
+pub struct Args {
+    /// Request passwords via Stdin instead of using the password helper
+    #[structopt(short = "i", long = "interactive")]
+    pub interactive: bool,
+    #[structopt(subcommand)]
+    pub command: Command,
 }
 
 #[derive(Debug, StructOpt, Clone)]
@@ -191,24 +182,6 @@ pub struct OtherSecret {
     fido_device: bool,
 }
 
-impl OtherSecret {
-    pub fn obtain(
-        &self,
-        secret_gen: &SecretGeneration,
-        verify_password: bool,
-        password_question: &str,
-    ) -> Fido2LuksResult<Vec<u8>> {
-        match &self.keyfile {
-            Some(keyfile) => util::read_keyfile(keyfile.clone()),
-            None if self.fido_device => {
-                Ok(Vec::from(&secret_gen.obtain_secret(password_question)?[..]))
-            }
-            None => util::read_password(password_question, verify_password)
-                .map(|p| p.as_bytes().to_vec()),
-        }
-    }
-}
-
 #[derive(Debug, StructOpt)]
 pub enum Command {
     #[structopt(name = "print-secret")]
@@ -217,13 +190,23 @@ pub enum Command {
         #[structopt(short = "b", long = "bin")]
         binary: bool,
         #[structopt(flatten)]
-        secret_gen: SecretGeneration,
+        credentials: Credentials,
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
+        #[structopt(flatten)]
+        secret: SecretParameters,
     },
     /// Adds a generated key to the specified LUKS device
     #[structopt(name = "add-key")]
     AddKey {
-        #[structopt(env = "FIDO2LUKS_DEVICE")]
-        device: PathBuf,
+        #[structopt(flatten)]
+        luks: LuksParameters,
+        #[structopt(flatten)]
+        credentials: Credentials,
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
+        #[structopt(flatten)]
+        secret: SecretParameters,
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
@@ -233,15 +216,19 @@ pub enum Command {
         #[structopt(flatten)]
         existing_secret: OtherSecret,
         #[structopt(flatten)]
-        secret_gen: SecretGeneration,
-        #[structopt(flatten)]
-        luks_settings: LuksSettings,
+        luks_mod: LuksModParameters,
     },
     /// Replace a previously added key with a password
     #[structopt(name = "replace-key")]
     ReplaceKey {
-        #[structopt(env = "FIDO2LUKS_DEVICE")]
-        device: PathBuf,
+        #[structopt(flatten)]
+        luks: LuksParameters,
+        #[structopt(flatten)]
+        credentials: Credentials,
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
+        #[structopt(flatten)]
+        secret: SecretParameters,
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
@@ -251,34 +238,43 @@ pub enum Command {
         #[structopt(flatten)]
         replacement: OtherSecret,
         #[structopt(flatten)]
-        secret_gen: SecretGeneration,
-        #[structopt(flatten)]
-        luks_settings: LuksSettings,
+        luks_mod: LuksModParameters,
     },
     /// Open the LUKS device
     #[structopt(name = "open")]
     Open {
-        #[structopt(env = "FIDO2LUKS_DEVICE")]
-        device: PathBuf,
+        #[structopt(flatten)]
+        luks: LuksParameters,
         #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
         name: String,
+        #[structopt(flatten)]
+        credentials: Credentials,
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
+        #[structopt(flatten)]
+        secret: SecretParameters,
         #[structopt(short = "r", long = "max-retries", default_value = "0")]
         retries: i32,
-        #[structopt(flatten)]
-        secret_gen: SecretGeneration,
     },
     /// Open the LUKS device using information embedded into the LUKS 2 header
     #[structopt(name = "open-token")]
     OpenToken {
-        #[structopt(env = "FIDO2LUKS_DEVICE")]
-        device: PathBuf,
+        #[structopt(flatten)]
+        luks: LuksParameters,
         #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
         name: String,
-        salt: String,
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
+        #[structopt(flatten)]
+        secret: SecretParameters,
+        #[structopt(short = "r", long = "max-retries", default_value = "0")]
+        retries: i32,
     },
     /// Generate a new FIDO credential
     #[structopt(name = "credential")]
     Credential {
+        #[structopt(flatten)]
+        authenticator: AuthenticatorParameters,
         /// Name to be displayed on the authenticator if it has a display
         #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME")]
         name: Option<String>,
@@ -295,19 +291,47 @@ pub fn parse_cmdline() -> Args {
 pub fn run_cli() -> Fido2LuksResult<()> {
     let mut stdout = io::stdout();
     let args = parse_cmdline();
+    let interactive = args.interactive;
     match &args.command {
-        Command::Credential { name } => {
-            let cred = make_credential_id(name.as_ref().map(|n| n.as_ref()))?;
+        Command::Credential {
+            authenticator,
+            name,
+        } => {
+            let pin_string;
+            let pin = if authenticator.pin {
+                pin_string = read_pin()?;
+                Some(pin_string.as_ref())
+            } else {
+                None
+            };
+            let cred = make_credential_id(name.as_ref().map(|n| n.as_ref()), pin)?;
             println!("{}", hex::encode(&cred.id));
             Ok(())
         }
         Command::PrintSecret {
             binary,
-            ref secret_gen,
+            authenticator,
+            credentials,
+            secret,
         } => {
-            let secret = secret_gen
-                .patch(&args, Some(false))
-                .obtain_secret("Password")?;
+            let pin_string;
+            let pin = if authenticator.pin {
+                pin_string = read_pin()?;
+                Some(pin_string.as_ref())
+            } else {
+                None
+            };
+            let salt = if interactive || secret.password_helper == PasswordHelper::Stdin {
+                util::read_password_hashed("Password", false)
+            } else {
+                secret.salt.obtain(&secret.password_helper)
+            }?;
+            let (secret, _cred) = derive_secret(
+                credentials.ids.0.as_slice(),
+                &salt,
+                authenticator.await_time,
+                pin,
+            )?;
             if *binary {
                 stdout.write_all(&secret[..])?;
             } else {
@@ -316,88 +340,185 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             Ok(stdout.flush()?)
         }
         Command::AddKey {
-            device,
-            exclusive,
-            token,
-            existing_secret,
-            ref secret_gen,
-            luks_settings,
-        } => {
-            let secret_gen = secret_gen.patch(&args, None);
-            let old_secret = existing_secret.obtain(&secret_gen, false, "Existing password")?;
-            let (secret, credential) = secret_gen.obtain_secret_and_credential("Password")?;
-            let added_slot = luks::add_key(
-                device.clone(),
-                &secret,
-                &old_secret[..],
-                luks_settings.kdf_time.or(Some(10)),
-                Some(&credential.id[..]).filter(|_| *token),
-            )?;
-            if *exclusive {
-                let destroyed = luks::remove_keyslots(&device, &[added_slot])?;
-                println!(
-                    "Added to key to device {}, slot: {}\nRemoved {} old keys",
-                    device.display(),
-                    added_slot,
-                    destroyed
-                );
-            } else {
-                println!(
-                    "Added to key to device {}, slot: {}",
-                    device.display(),
-                    added_slot
-                );
-            }
-            Ok(())
+            luks,
+            authenticator,
+            credentials,
+            secret,
+            luks_mod,
+            existing_secret: other_secret,
+            ..
         }
-        Command::ReplaceKey {
-            device,
-            add_password,
-            //token,
-            replacement,
-            ref secret_gen,
-            luks_settings,
+        | Command::ReplaceKey {
+            luks,
+            authenticator,
+            credentials,
+            secret,
+            luks_mod,
+            replacement: other_secret,
+            ..
         } => {
-            let secret_gen = secret_gen.patch(&args, Some(false));
-            let secret = secret_gen.obtain_secret("Password")?;
-            let new_secret = replacement.obtain(&secret_gen, true, "Replacement password")?;
-            let slot = if *add_password {
-                luks::add_key(
-                    device,
-                    &new_secret[..],
-                    &secret,
-                    luks_settings.kdf_time,
-                    None,
-                )
+            let pin = if authenticator.pin {
+                Some(read_pin()?)
             } else {
-                luks::replace_key(
-                    device,
-                    &new_secret[..],
-                    &secret,
-                    luks_settings.kdf_time,
-                    None,
+                None
+            };
+            let salt = |q: &str, verify: bool| -> Fido2LuksResult<[u8; 32]> {
+                if interactive || secret.password_helper == PasswordHelper::Stdin {
+                    util::read_password_hashed(q, verify)
+                } else {
+                    secret.salt.obtain(&secret.password_helper)
+                }
+            };
+            let other_secret = |salt_q: &str, verify: bool| -> Fido2LuksResult<Vec<u8>> {
+                match other_secret {
+                    OtherSecret {
+                        keyfile: Some(file),
+                        ..
+                    } => util::read_keyfile(file),
+                    OtherSecret {
+                        fido_device: true, ..
+                    } => Ok(derive_secret(
+                        &credentials.ids.0,
+                        &salt(salt_q, verify)?,
+                        authenticator.await_time,
+                        pin.as_deref(),
+                    )
+                    .map(|(secret, _cred)| secret)?[..]
+                        .to_vec()),
+                    _ => Ok(util::read_password(salt_q, verify)?.as_bytes().to_vec()),
+                }
+            };
+            let secret = |verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+                derive_secret(
+                    &credentials.ids.0,
+                    &salt("Password", verify)?,
+                    authenticator.await_time,
+                    pin.as_deref(),
                 )
-            }?;
-            println!(
-                "Added to password to device {}, slot: {}",
-                device.display(),
-                slot
-            );
-            Ok(())
+            };
+            // Non overlap
+            match &args.command {
+                Command::AddKey {
+                    exclusive, token, ..
+                } => {
+                    let existing_secret = other_secret("Current password", false)?;
+                    let (new_secret, cred) = secret(true)?;
+                    let added_slot = luks::add_key(
+                        &luks.device,
+                        &new_secret,
+                        &existing_secret[..],
+                        luks_mod.kdf_time.or(Some(10)),
+                        Some(&cred.id[..]).filter(|_| *token),
+                    )?;
+                    if *exclusive {
+                        let destroyed = luks::remove_keyslots(&luks.device, &[added_slot])?;
+                        println!(
+                            "Added to key to device {}, slot: {}\nRemoved {} old keys",
+                            luks.device.display(),
+                            added_slot,
+                            destroyed
+                        );
+                    } else {
+                        println!(
+                            "Added to key to device {}, slot: {}",
+                            luks.device.display(),
+                            added_slot
+                        );
+                    }
+                    Ok(())
+                }
+                Command::ReplaceKey { add_password, .. } => {
+                    let (existing_secret, _cred) = secret(false)?;
+                    let replacement_secret = other_secret("Replacement password", true)?;
+                    let slot = if *add_password {
+                        luks::add_key(
+                            &luks.device,
+                            &replacement_secret[..],
+                            &existing_secret,
+                            luks_mod.kdf_time,
+                            None,
+                        )
+                    } else {
+                        luks::replace_key(
+                            &luks.device,
+                            &replacement_secret[..],
+                            &existing_secret,
+                            luks_mod.kdf_time,
+                            None,
+                        )
+                    }?;
+                    println!(
+                        "Added to password to device {}, slot: {}",
+                        luks.device.display(),
+                        slot
+                    );
+                    Ok(())
+                }
+                _ => unreachable!(),
+            }
         }
         Command::Open {
-            device,
+            luks,
+            authenticator,
+            secret,
             name,
             retries,
-            ref secret_gen,
+            ..
+        }
+        | Command::OpenToken {
+            luks,
+            authenticator,
+            secret,
+            name,
+            retries,
         } => {
+            let pin_string;
+            let pin = if authenticator.pin {
+                pin_string = read_pin()?;
+                Some(pin_string.as_ref())
+            } else {
+                None
+            };
+            let salt = |q: &str, verify: bool| -> Fido2LuksResult<[u8; 32]> {
+                if interactive || secret.password_helper == PasswordHelper::Stdin {
+                    util::read_password_hashed(q, verify)
+                } else {
+                    secret.salt.obtain(&secret.password_helper)
+                }
+            };
+
+            // Cow shouldn't be necessary
+            let secret = |credentials: Cow<'_, Vec<HexEncoded>>| {
+                derive_secret(
+                    credentials.as_ref(),
+                    &salt("Password", false)?,
+                    authenticator.await_time,
+                    pin,
+                )
+            };
+
             let mut retries = *retries;
             loop {
-                match secret_gen
-                    .patch(&args, Some(false))
-                    .obtain_secret("Password")
-                    .and_then(|secret| luks::open_container(&device, &name, &secret))
-                {
+                let secret = match &args.command {
+                    Command::Open { credentials, .. } => secret(Cow::Borrowed(&credentials.ids.0))
+                        .and_then(|(secret, _cred)| {
+                            luks::open_container(&luks.device, &name, &secret, luks.slot)
+                        }),
+                    Command::OpenToken { .. } => luks::open_container_token(
+                        &luks.device,
+                        &name,
+                        Box::new(|credentials: Vec<String>| {
+                            let creds = credentials
+                                .into_iter()
+                                .flat_map(|cred| HexEncoded::from_str(cred.as_ref()).ok())
+                                .collect::<Vec<_>>();
+                            secret(Cow::Owned(creds))
+                                .map(|(secret, cred)| (secret, hex::encode(&cred.id)))
+                        }),
+                    ),
+                    _ => unreachable!(),
+                };
+                match secret {
                     Err(e) => {
                         match e {
                             Fido2LuksError::WrongSecret if retries > 0 => {}
@@ -413,31 +534,6 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             }
         }
-        // TODO: utilise salt
-        Command::OpenToken {
-            device,
-            name,
-            salt: _,
-        } => luks::open_container_token(
-            device,
-            &name[..],
-            Box::new(|creds| {
-                let (secret, cred) = SecretGeneration {
-                    credential_ids: CommaSeparated(
-                        creds
-                            .iter()
-                            .map(|c| HexEncoded::from_str(&c[..]).unwrap())
-                            .collect(),
-                    ),
-                    salt: InputSalt::String("".into()),
-                    password_helper: Default::default(),
-                    await_authenticator: 100,
-                    verify_password: None,
-                }
-                .obtain_secret_and_credential("Password")?;
-                Ok((secret, hex::encode(cred.id)))
-            }),
-        ),
         Command::Connected => match get_devices() {
             Ok(ref devs) if !devs.is_empty() => {
                 println!("Found {} devices", devs.len());

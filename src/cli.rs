@@ -155,7 +155,7 @@ fn derive_secret(
     let (unsalted, cred) =
         perform_challenge(&credentials, salt, timeout - start.elapsed().unwrap(), pin)?;
 
-    Ok((sha256(&[&unsalted[..], salt]), cred.clone()))
+    Ok((sha256(&[salt, &unsalted[..]]), cred.clone()))
 }
 
 fn read_pin() -> Fido2LuksResult<String> {

@@ -189,7 +189,7 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
             KeyslotInfo::Inactive => continue,
             KeyslotInfo::Active | KeyslotInfo::ActiveLast if !exclude.contains(&slot) => {
                 if let Ok(_) = check_luks2(&mut device) {
-                    if let Some((token, _)) = dbg!(find_token(&mut device, slot))? {
+                    if let Some((token, _)) = find_token(&mut device, slot)? {
                         tokens.push(token);
                     }
                 }
@@ -203,7 +203,9 @@ pub fn remove_keyslots<P: AsRef<Path>>(path: P, exclude: &[u32]) -> Fido2LuksRes
             break;
         }
     }
-    for token in tokens.iter() {
+    // Ensure indices stay valid
+    tokens.sort();
+    for token in tokens.iter().rev() {
         device
             .token_handle()
             .json_set(TokenInput::RemoveToken(*token))?;

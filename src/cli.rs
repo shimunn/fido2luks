@@ -232,9 +232,9 @@ pub enum Command {
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
-        // /// Will add an token to your LUKS 2 header, including the credential id
-        // #[structopt(short = "t", long = "token")]
-        //  token: bool,
+        /// Will add an token to your LUKS 2 header, including the credential id
+        #[structopt(short = "t", long = "token")]
+        token: bool,
         #[structopt(flatten)]
         replacement: OtherSecret,
         #[structopt(flatten)]
@@ -346,6 +346,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             luks_mod,
             existing_secret: other_secret,
+            token,
             ..
         }
         | Command::ReplaceKey {
@@ -355,6 +356,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             luks_mod,
             replacement: other_secret,
+            token,
             ..
         } => {
             let pin = if authenticator.pin {
@@ -369,12 +371,12 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     secret.salt.obtain(&secret.password_helper)
                 }
             };
-            let other_secret = |salt_q: &str, verify: bool| -> Fido2LuksResult<Vec<u8>> {
+            let other_secret = |salt_q: &str, verify: bool| -> Fido2LuksResult<(Vec<u8>, Option<FidoCredential>)> {
                 match other_secret {
                     OtherSecret {
                         keyfile: Some(file),
                         ..
-                    } => util::read_keyfile(file),
+                    } => Ok((util::read_keyfile(file)?, None)),
                     OtherSecret {
                         fido_device: true, ..
                     } => Ok(derive_secret(
@@ -383,9 +385,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         authenticator.await_time,
                         pin.as_deref(),
                     )
-                    .map(|(secret, _cred)| secret)?[..]
-                        .to_vec()),
-                    _ => Ok(util::read_password(salt_q, verify)?.as_bytes().to_vec()),
+                    .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?),
+                    _ => Ok((util::read_password(salt_q, verify)?.as_bytes().to_vec(), None)),
                 }
             };
             let secret = |verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
@@ -399,9 +400,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             // Non overlap
             match &args.command {
                 Command::AddKey {
-                    exclusive, token, ..
+                    exclusive,  ..
                 } => {
-                    let existing_secret = other_secret("Current password", false)?;
+                    let (existing_secret, _) = other_secret("Current password", false)?;
                     let (new_secret, cred) = secret(true)?;
                     let added_slot = luks::add_key(
                         &luks.device,
@@ -428,15 +429,15 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     Ok(())
                 }
                 Command::ReplaceKey { add_password, .. } => {
-                    let (existing_secret, _cred) = secret(false)?;
-                    let replacement_secret = other_secret("Replacement password", true)?;
+                    let (existing_secret, _) = secret(false)?;
+                    let (replacement_secret, cred) = other_secret("Replacement password", true)?;
                     let slot = if *add_password {
                         luks::add_key(
                             &luks.device,
                             &replacement_secret[..],
                             &existing_secret,
                             luks_mod.kdf_time,
-                            None,
+                            cred.as_ref().filter(|_| *token).map(|cred| &cred.id[..]),
                         )
                     } else {
                         luks::replace_key(
@@ -444,7 +445,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                             &replacement_secret[..],
                             &existing_secret,
                             luks_mod.kdf_time,
-                            None,
+                            cred.as_ref().filter(|_| *token).map(|cred| &cred.id[..]),
                         )
                     }?;
                     println!(

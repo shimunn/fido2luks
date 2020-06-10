@@ -14,14 +14,12 @@ fn load_device_handle<P: AsRef<Path>>(path: P) -> Fido2LuksResult<CryptDevice> {
 }
 
 fn check_luks2(device: &mut CryptDevice) -> Fido2LuksResult<()> {
-    //Wait for PR to fix err https://github.com/stratis-storage/libcryptsetup-rs/pull/82
-    Ok(())
-    /*match device.format_handle().get_type()? {
+    match device.format_handle().get_type()? {
         EncryptionFormat::Luks2 => Ok(()),
         _ => Err(Fido2LuksError::LuksError {
             cause: LuksError::Luks2Required,
         }),
-    }*/
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

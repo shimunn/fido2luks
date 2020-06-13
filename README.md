@@ -30,6 +30,8 @@ set -a
 . /etc/fido2luks.conf
 
 # Repeat for each luks volume
+# You can also use the `--token` flag when using LUKS2 which will then store the credential in the LUKS header,
+# enabling you to use `fido2luks open-token` without passing a credential as parameter
 sudo -E fido2luks -i add-key /dev/disk/by-uuid/<DISK_UUID>
 
 # Test(only works if the luks container isn't active)
@@ -71,6 +73,8 @@ Just reboot and see if it works, if that's the case you should remove your old l
 # Recommend in case you lose your authenticator, store this backupfile somewhere safe
 cryptsetup luksHeaderBackup /dev/disk/by-uuid/<DISK_UUID> --header-backup-file luks_backup_<DISK_UUID>
 # There is no turning back if you mess this up, make sure you made a backup
+# You can also pass `--token` if you're using LUKS2 which will then store the credential in the LUKS header,
+# which will enable you to use `fido2luks open-token` without passing a credential as parameter
 fido2luks -i add-key --exclusive /dev/disk/by-uuid/<DISK_UUID>
 ```
 

@@ -235,11 +235,15 @@ pub fn replace_key<P: AsRef<Path>>(
     if let Some(id) = credential_id {
         if check_luks2(&mut device).is_ok() {
             let token = find_token(&mut device, slot)?.map(|(t, _)| t);
+            let json = serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap();
             if let Some(token) = token {
-                device.token_handle().json_set(TokenInput::ReplaceToken(
-                    token,
-                    &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
-                ))?;
+                device
+                    .token_handle()
+                    .json_set(TokenInput::ReplaceToken(token, &json))?;
+            } else {
+                device
+                    .token_handle()
+                    .json_set(TokenInput::AddToken(&json))?;
             }
         }
     }

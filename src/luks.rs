@@ -219,13 +219,19 @@ pub fn replace_key<P: AsRef<Path>>(
     credential_id: Option<&[u8]>,
 ) -> Fido2LuksResult<u32> {
     let mut device = load_device_handle(path)?;
-    // Set iteration time not sure wether this applies to luks2 as well
     if let Some(millis) = iteration_time {
         device.settings_handle().set_iteration_time(millis)
     }
-    let slot = device
+    // Use activate dry-run to locate keyslot
+    let slot = device.activate_handle().activate_by_passphrase(
+        None,
+        None,
+        old_secret,
+        CryptActivateFlags::empty(),
+    )?;
+    device
         .keyslot_handle()
-        .change_by_passphrase(None, None, old_secret, secret)? as u32;
+        .change_by_passphrase(Some(slot), Some(slot), old_secret, secret)? as u32;
     if let Some(id) = credential_id {
         if check_luks2(&mut device).is_ok() {
             let token = find_token(&mut device, slot)?.map(|(t, _)| t);

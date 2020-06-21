@@ -3,20 +3,20 @@ name: default
 
 steps:
  - name: fmt
-   image: rust:1.37.0
+   image: rust:1.43.0
    commands:
      -  rustup component add rustfmt
      -  cargo fmt --all -- --check
  - name: test
-   image: rust:1.37.0
+   image: rust:1.43.0
    commands:
-    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev
+    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev libclang-dev clang pkg-config
     - cargo test
 
  - name: build
-   image: rust:1.37.0
+   image: rust:1.43.0
    commands:
-    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev
+    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev libclang-dev clang pkg-config
     - cargo install -f --path . --root .
    when:
     event: tag

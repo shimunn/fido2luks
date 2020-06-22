@@ -1,5 +1,4 @@
 use crate::error::*;
-use crate::luks;
 use crate::*;
 
 use structopt::StructOpt;
@@ -12,8 +11,10 @@ use std::io::Write;
 use std::process::exit;
 use std::thread;
 
+use crate::luks::{Fido2LuksToken, LuksDevice};
 use crate::util::sha256;
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::time::SystemTime;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -22,6 +23,12 @@ pub struct HexEncoded(pub Vec<u8>);
 impl Display for HexEncoded {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.write_str(&hex::encode(&self.0))
+    }
+}
+
+impl AsRef<[u8]> for HexEncoded {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
     }
 }
 
@@ -59,7 +66,7 @@ impl<T: Display + FromStr> FromStr for CommaSeparated<T> {
 
 #[derive(Debug, StructOpt)]
 pub struct Credentials {
-    /// FIDO credential ids, seperated by ',' generate using fido2luks credential
+    /// FIDO credential ids, separated by ',' generate using fido2luks credential
     #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
     pub ids: CommaSeparated<HexEncoded>,
 }
@@ -282,6 +289,45 @@ pub enum Command {
     /// Check if an authenticator is connected
     #[structopt(name = "connected")]
     Connected,
+    Token(TokenCommand),
+}
+
+///LUKS2 token related operations
+#[derive(Debug, StructOpt)]
+pub enum TokenCommand {
+    /// List all tokens associated with the specified device
+    List {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        /// Dump all credentials as CSV
+        #[structopt(long = "csv")]
+        csv: bool,
+    },
+    /// Add credential to a keyslot
+    Add {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        #[structopt(flatten)]
+        credentials: Credentials,
+        /// Slot to which the credentials will be added
+        #[structopt(long = "slot", env = "FIDO2LUKS_DEVICE_SLOT")]
+        slot: u32,
+    },
+    /// Remove credentials from token(s)
+    Remove {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+        #[structopt(flatten)]
+        credentials: Credentials,
+        /// Token from which the credentials will be removed
+        #[structopt(long = "token")]
+        token_id: Option<u32>,
+    },
+    /// Remove all unassigned tokens
+    GC {
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: PathBuf,
+    },
 }
 
 pub fn parse_cmdline() -> Args {
@@ -371,7 +417,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     secret.salt.obtain(&secret.password_helper)
                 }
             };
-            let other_secret = |salt_q: &str, verify: bool| -> Fido2LuksResult<(Vec<u8>, Option<FidoCredential>)> {
+            let other_secret = |salt_q: &str,
+                                verify: bool|
+             -> Fido2LuksResult<(Vec<u8>, Option<FidoCredential>)> {
                 match other_secret {
                     OtherSecret {
                         keyfile: Some(file),
@@ -386,7 +434,10 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         pin.as_deref(),
                     )
                     .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?),
-                    _ => Ok((util::read_password(salt_q, verify)?.as_bytes().to_vec(), None)),
+                    _ => Ok((
+                        util::read_password(salt_q, verify)?.as_bytes().to_vec(),
+                        None,
+                    )),
                 }
             };
             let secret = |verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
@@ -397,22 +448,20 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     pin.as_deref(),
                 )
             };
+            let mut luks_dev = LuksDevice::load(&luks.device)?;
             // Non overlap
             match &args.command {
-                Command::AddKey {
-                    exclusive,  ..
-                } => {
+                Command::AddKey { exclusive, .. } => {
                     let (existing_secret, _) = other_secret("Current password", false)?;
                     let (new_secret, cred) = secret(true)?;
-                    let added_slot = luks::add_key(
-                        &luks.device,
+                    let added_slot = luks_dev.add_key(
                         &new_secret,
                         &existing_secret[..],
                         luks_mod.kdf_time.or(Some(10)),
                         Some(&cred.id[..]).filter(|_| *token),
                     )?;
                     if *exclusive {
-                        let destroyed = luks::remove_keyslots(&luks.device, &[added_slot])?;
+                        let destroyed = luks_dev.remove_keyslots(&[added_slot])?;
                         println!(
                             "Added to key to device {}, slot: {}\nRemoved {} old keys",
                             luks.device.display(),
@@ -432,16 +481,14 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     let (existing_secret, _) = secret(false)?;
                     let (replacement_secret, cred) = other_secret("Replacement password", true)?;
                     let slot = if *add_password {
-                        luks::add_key(
-                            &luks.device,
+                        luks_dev.add_key(
                             &replacement_secret[..],
                             &existing_secret,
                             luks_mod.kdf_time,
                             cred.as_ref().filter(|_| *token).map(|cred| &cred.id[..]),
                         )
                     } else {
-                        luks::replace_key(
-                            &luks.device,
+                        luks_dev.replace_key(
                             &replacement_secret[..],
                             &existing_secret,
                             luks_mod.kdf_time,
@@ -499,14 +546,12 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             };
 
             let mut retries = *retries;
+            let mut luks_dev = LuksDevice::load(&luks.device)?;
             loop {
                 let secret = match &args.command {
                     Command::Open { credentials, .. } => secret(Cow::Borrowed(&credentials.ids.0))
-                        .and_then(|(secret, _cred)| {
-                            luks::open_container(&luks.device, &name, &secret, luks.slot)
-                        }),
-                    Command::OpenToken { .. } => luks::open_container_token(
-                        &luks.device,
+                        .and_then(|(secret, _cred)| luks_dev.activate(&name, &secret, luks.slot)),
+                    Command::OpenToken { .. } => luks_dev.activate_token(
                         &name,
                         Box::new(|credentials: Vec<String>| {
                             let creds = credentials
@@ -516,6 +561,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                             secret(Cow::Owned(creds))
                                 .map(|(secret, cred)| (secret, hex::encode(&cred.id)))
                         }),
+                        luks.slot,
                     ),
                     _ => unreachable!(),
                 };
@@ -531,7 +577,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         retries -= 1;
                         eprintln!("{}", e);
                     }
-                    res => break res,
+                    res => break res.map(|_| ()),
                 }
             }
         }
@@ -541,6 +587,130 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 Ok(())
             }
             _ => exit(1),
+        },
+        Command::Token(cmd) => match cmd {
+            TokenCommand::List {
+                device,
+                csv: dump_credentials,
+            } => {
+                let mut dev = LuksDevice::load(device)?;
+                let mut creds = Vec::new();
+                for token in dev.tokens()? {
+                    let (id, token) = token?;
+                    for cred in token.credential.iter() {
+                        if !creds.contains(cred) {
+                            creds.push(cred.clone());
+                            if *dump_credentials {
+                                print!("{}{}", if creds.len() == 1 { "" } else { "," }, cred);
+                            }
+                        }
+                    }
+                    if *dump_credentials {
+                        continue;
+                    }
+                    println!(
+                        "{}:\n\tSlots: {}\n\tCredentials: {}",
+                        id,
+                        if token.keyslots.is_empty() {
+                            "None".into()
+                        } else {
+                            token.keyslots.iter().cloned().collect::<Vec<_>>().join(",")
+                        },
+                        token
+                            .credential
+                            .iter()
+                            .map(|cred| format!(
+                                "{} ({})",
+                                cred,
+                                creds.iter().position(|c| c == cred).unwrap().to_string()
+                            ))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    );
+                }
+                if *dump_credentials {
+                    println!();
+                }
+                Ok(())
+            }
+            TokenCommand::Add {
+                device,
+                credentials,
+                slot,
+            } => {
+                let mut dev = LuksDevice::load(device)?;
+                let mut tokens = Vec::new();
+                for token in dev.tokens()? {
+                    let (id, token) = token?;
+                    if token.keyslots.contains(&slot.to_string()) {
+                        tokens.push((id, token));
+                    }
+                }
+                let count = if tokens.is_empty() {
+                    dev.add_token(&Fido2LuksToken::with_credentials(&credentials.ids.0, *slot))?;
+                    1
+                } else {
+                    tokens.len()
+                };
+                for (id, mut token) in tokens {
+                    token
+                        .credential
+                        .extend(credentials.ids.0.iter().map(|h| h.to_string()));
+                    dev.update_token(id, &token)?;
+                }
+                println!("Updated {} tokens", count);
+                Ok(())
+            }
+            TokenCommand::Remove {
+                device,
+                credentials,
+                token_id,
+            } => {
+                let mut dev = LuksDevice::load(device)?;
+                let mut tokens = Vec::new();
+                for token in dev.tokens()? {
+                    let (id, token) = token?;
+                    if let Some(token_id) = token_id {
+                        if id == *token_id {
+                            tokens.push((id, token));
+                        }
+                    } else {
+                        tokens.push((id, token));
+                    }
+                }
+                let count = tokens.len();
+                for (id, mut token) in tokens {
+                    token.credential = token
+                        .credential
+                        .into_iter()
+                        .filter(|cred| !credentials.ids.0.iter().any(|h| &h.to_string() == cred))
+                        .collect();
+                    dev.update_token(id, &token)?;
+                }
+                println!("Updated {} tokens", count);
+                Ok(())
+            }
+            TokenCommand::GC { device } => {
+                let mut dev = LuksDevice::load(device)?;
+                let mut creds: HashSet<String> = HashSet::new();
+                let mut remove = Vec::new();
+                for token in dev.tokens()? {
+                    let (id, token) = token?;
+                    if token.keyslots.is_empty() || token.credential.is_empty() {
+                        creds.extend(token.credential);
+                        remove.push(id);
+                    }
+                }
+                for id in remove.iter().rev() {
+                    dev.remove_token(*id)?;
+                }
+                println!(
+                    "Removed {} tokens, affected credentials: {}",
+                    remove.len(),
+                    creds.into_iter().collect::<Vec<_>>().join(",")
+                );
+                Ok(())
+            }
         },
     }
 }

@@ -75,6 +75,12 @@ impl LuksError {
     }
 }
 
+impl From<LuksError> for Fido2LuksError {
+    fn from(e: LuksError) -> Self {
+        Fido2LuksError::LuksError { cause: e }
+    }
+}
+
 use libcryptsetup_rs::LibcryptErr;
 use std::io::ErrorKind;
 use std::string::FromUtf8Error;

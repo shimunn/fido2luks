@@ -10,13 +10,15 @@ steps:
  - name: test
    image: rust:1.43.0
    commands:
-    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev libclang-dev clang pkg-config
+    - apt update && apt install -y libkeyutils-dev libclang-dev clang pkg-config  
+    - echo 'deb http://http.us.debian.org/debian unstable main non-free contrib' >> /etc/apt/sources.list.d/unstable.list && apt update && apt install -y libcryptsetup-dev
     - cargo test
 
  - name: build
    image: rust:1.43.0
    commands:
-    - apt update && apt install -y libcryptsetup-dev libkeyutils-dev libclang-dev clang pkg-config
+    - apt update && apt install -y libkeyutils-dev libclang-dev clang pkg-config  
+    - echo 'deb http://http.us.debian.org/debian unstable main non-free contrib' >> /etc/apt/sources.list.d/unstable.list && apt update && apt install -y libcryptsetup-dev
     - cargo install -f --path . --root .
    when:
     event: tag

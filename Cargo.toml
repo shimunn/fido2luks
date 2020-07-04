@@ -31,3 +31,14 @@ opt-level = 'z'
 panic = 'abort'
 incremental = false
 overflow-checks = false
+
+[package.metadata.deb]
+depends = "$auto, cryptsetup"
+build-depends = "libclang-dev, libcryptsetup-dev"
+extended-description = "Decrypt your LUKS partition using a FIDO2 compatible authenticator"
+assets = [
+    ["target/release/fido2luks", "usr/bin/", "755"],
+    ["initramfs-tools/keyscript.sh", "/lib/cryptsetup/scripts/fido2luks", "755" ],
+    ["initramfs-tools/hook/fido2luks.sh", "etc/initramfs-tools/hooks/", "755" ],
+    ["initramfs-tools/fido2luks.conf", "etc/", "644"],
+]

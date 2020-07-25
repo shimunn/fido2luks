@@ -43,3 +43,12 @@ assets = [
     ["initramfs-tools/hook/fido2luks.sh", "etc/initramfs-tools/hooks/", "755" ],
     ["initramfs-tools/fido2luks.conf", "etc/", "644"],
 ]
+
+[package.metadata.rpm]
+package = "fido2luks"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+fido2luks = { path = "/usr/bin/fido2luks" }

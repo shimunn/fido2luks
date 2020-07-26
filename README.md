@@ -107,3 +107,21 @@ sudo -E fido2luks -i replace-key /dev/disk/by-uuid/<DISK_UUID>
 
 sudo rm -rf /usr/lib/dracut/modules.d/96luks-2fa /etc/dracut.conf.d/luks-2fa.conf /etc/fido2luks.conf
 ```
+
+## License
+
+Licensed under
+
+ * General Public License 3, [LICENSE](LICENSE)
+
+ * Mozilla Public License 2.0, ([LICENSE-MPL](LICENSE-MPL) or https://www.mozilla.org/en-US/MPL/2.0/)
+
+where applicable
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in the work by you, as defined in the MPL 2.0
+license, shall be licensed as above, without any additional terms or
+conditions.
+

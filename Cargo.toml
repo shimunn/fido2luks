@@ -11,7 +11,7 @@ repository = "https://github.com/shimunn/fido2luks"
 readme = "README.md"
 keywords = ["luks", "fido2", "u2f"]
 categories = ["command-line-utilities"]
-license-file = "LICENSE"
+license = "MPL-2.0"
 
 [dependencies]
 ctap_hmac = { version="0.4.2", features = ["request_multiple"] }

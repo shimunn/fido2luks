@@ -112,11 +112,7 @@ sudo rm -rf /usr/lib/dracut/modules.d/96luks-2fa /etc/dracut.conf.d/luks-2fa.con
 
 Licensed under
 
- * General Public License 3, [LICENSE](LICENSE)
-
  * Mozilla Public License 2.0, ([LICENSE-MPL](LICENSE-MPL) or https://www.mozilla.org/en-US/MPL/2.0/)
-
-where applicable
 
 ### Contribution
 

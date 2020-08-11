@@ -42,3 +42,4 @@ assets = [
     ["initramfs-tools/hook/fido2luks.sh", "etc/initramfs-tools/hooks/", "755" ],
     ["initramfs-tools/fido2luks.conf", "etc/", "644"],
 ]
+conf-files = ["/etc/fido2luks.conf"]

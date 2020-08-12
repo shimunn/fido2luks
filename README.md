@@ -1,6 +1,6 @@
 # fido2luks [![Crates.io Version](https://img.shields.io/crates/v/fido2luks.svg)](https://crates.io/crates/fido2luks)
 
-This will allow you to unlock your luks encrypted disk with an fido2 compatible key
+This will allow you to unlock your LUKS encrypted disk with an FIDO2 compatible key.
 
 Note: This has only been tested under Fedora 31, [Ubuntu 20.04](initramfs-tools/), [NixOS](https://nixos.org/nixos/manual/#sec-luks-file-systems-fido2) using a Solo Key, Trezor Model T
 
@@ -96,10 +96,18 @@ set -a
 
 Then add the new secret to each device and update dracut afterwards `dracut -f`
 
+### Multiple keys
+
+Additional/backup keys are supported, Multiple fido2luks credentials can be addded to your /etc/fido2luks.conf file. Crendetial tokens are comma seperated.
+
+```
+FIDO2LUKS_CREDENTIAL_ID=<CREDENTIAL1>,<CREDENTIAL2>,<CREDENTIAL3>
+
+```
+
 ## Removal
 
 Remove `rd.luks.2fa` from `GRUB_CMDLINE_LINUX` in /etc/default/grub
-
 ```
 set -a
 . fido2luks.conf
@@ -107,6 +115,7 @@ sudo -E fido2luks -i replace-key /dev/disk/by-uuid/<DISK_UUID>
 
 sudo rm -rf /usr/lib/dracut/modules.d/96luks-2fa /etc/dracut.conf.d/luks-2fa.conf /etc/fido2luks.conf
 ```
+
 
 ## License
 

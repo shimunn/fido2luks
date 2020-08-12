@@ -102,7 +102,6 @@ Additional/backup keys are supported, Multiple fido2luks credentials can be addd
 
 ```
 FIDO2LUKS_CREDENTIAL_ID=<CREDENTIAL1>,<CREDENTIAL2>,<CREDENTIAL3>
-
 ```
 
 ## Removal

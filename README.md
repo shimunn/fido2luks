@@ -98,8 +98,7 @@ Then add the new secret to each device and update dracut afterwards `dracut -f`
 
 ### Multiple keys
 
-Additional/backup keys are supported, Multiple fido2luks credentials can be addded to your /etc/fido2luks.conf file. Crendetial tokens are comma seperated.
-
+Additional/backup keys are supported, Multiple fido2luks credentials can be added to your /etc/fido2luks.conf file. Credential tokens are comma separated.
 ```
 FIDO2LUKS_CREDENTIAL_ID=<CREDENTIAL1>,<CREDENTIAL2>,<CREDENTIAL3>
 ```

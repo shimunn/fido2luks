@@ -65,7 +65,7 @@ cp /usr/bin/fido2luks /boot/fido2luks/
 cp /etc/fido2luks.conf /boot/fido2luks/
 ```
 
-## Test
+## Testing
 
 Just reboot and see if it works, if that's the case you should remove your old less secure password from your LUKS header:
 

@@ -5,24 +5,24 @@ steps:
  - name: fmt
    image: rust:1.43.0
    commands:
-     -  rustup component add rustfmt
-     -  cargo fmt --all -- --check
+     - rustup component add rustfmt
+     - cargo fmt --all -- --check
  - name: test
-   image: rust:1.43.0
-   commands:
-    - apt update && apt install -y libkeyutils-dev libclang-dev clang pkg-config  
-    - echo 'deb http://http.us.debian.org/debian unstable main non-free contrib' >> /etc/apt/sources.list.d/unstable.list && apt update && apt install -y libcryptsetup-dev
-    - cargo test
-
- - name: publish
-   image: rust:1.43.0
+   image: ubuntu:focal
    environment:
+    DEBIAN_FRONTEND: noninteractive
+   commands:
+    - apt update && apt install -y cargo libkeyutils-dev libclang-dev clang pkg-config libcryptsetup-dev 
+    - cargo test --locked
+ - name: publish
+   image: ubuntu:focal
+   environment:
+    DEBIAN_FRONTEND: noninteractive
     CARGO_REGISTRY_TOKEN:
      from_secret: cargo_tkn
    commands:
     - grep -E 'version ?= ?"${DRONE_TAG}"' -i Cargo.toml || (printf "incorrect crate/tag version" && exit 1)
-    - apt update && apt install -y libkeyutils-dev libclang-dev clang pkg-config  
-    - echo 'deb http://http.us.debian.org/debian unstable main non-free contrib' >> /etc/apt/sources.list.d/unstable.list && apt update && apt install -y libcryptsetup-dev
+    - apt update && apt install -y cargo libkeyutils-dev libclang-dev clang pkg-config libcryptsetup-dev 
     - cargo package --all-features
     - cargo publish --all-features
    when:

@@ -135,10 +135,9 @@ impl PasswordHelper {
             Systemd => unimplemented!(),
             Stdin => Ok(util::read_password("Password", true)?),
             Script(password_helper) => {
-                let mut helper_parts = password_helper.split(' ');
-
-                let password = Command::new((&mut helper_parts).next().unwrap())
-                    .args(helper_parts)
+                let password = Command::new("sh")
+                    .arg("-c")
+                    .arg(&password_helper)
                     .output()
                     .map_err(|e| Fido2LuksError::AskPassError {
                         cause: error::AskPassError::IO(e),

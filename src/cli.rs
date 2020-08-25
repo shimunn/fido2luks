@@ -75,7 +75,7 @@ pub struct Credentials {
 #[derive(Debug, StructOpt)]
 pub struct AuthenticatorParameters {
     /// Request a PIN to unlock the authenticator
-    #[structopt(short = "P", long = "pin", env = "FIDO2LUKS_PIN")]
+    #[structopt(short = "P", long = "pin")]
     pub pin: bool,
 
     /// Location to read PIN from

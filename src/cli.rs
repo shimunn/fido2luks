@@ -91,6 +91,17 @@ pub struct AuthenticatorParameters {
     pub await_time: u64,
 }
 
+impl AuthenticatorParameters {
+    fn read_pin(&self) -> Fido2LuksResult<String> {
+        if let Some(pass) = self.pin_input.as_ref() {
+            println!("pin : {}", pass);
+            Ok(pass)
+        } else {
+            util::read_password("Authenticator PIN", false)
+        }
+    }
+}
+
 #[derive(Debug, StructOpt)]
 pub struct LuksParameters {
     #[structopt(env = "FIDO2LUKS_DEVICE")]
@@ -334,15 +345,6 @@ pub fn parse_cmdline() -> Args {
     Args::from_args()
 }
 
-fn read_pin() -> Fido2LuksResult<String> {
-    if let Some(pass) = authenticator.pin_input.as_ref() {
-        println!("pin : {}", pass)
-        Ok(pass)
-    } else {
-        util::read_password("Authenticator PIN", false)
-    }
-}
-
 pub fn run_cli() -> Fido2LuksResult<()> {
     let mut stdout = io::stdout();
     let args = parse_cmdline();
@@ -354,7 +356,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None

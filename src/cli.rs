@@ -77,6 +77,10 @@ pub struct AuthenticatorParameters {
     #[structopt(short = "P", long = "pin")]
     pub pin: bool,
 
+    /// Pass PIN value in CLI argument
+    #[structopt(long = "pin-input", name = "pin-input")]
+    pub pin_input: Option<String>,
+
     /// Await for an authenticator to be connected, timeout after n seconds
     #[structopt(
         long = "await-dev",
@@ -163,10 +167,6 @@ fn derive_secret(
         perform_challenge(&credentials, salt, timeout - start.elapsed().unwrap(), pin)?;
 
     Ok((sha256(&[salt, &unsalted[..]]), cred.clone()))
-}
-
-fn read_pin() -> Fido2LuksResult<String> {
-    util::read_password("Authenticator PIN", false)
 }
 
 #[derive(Debug, StructOpt)]
@@ -332,6 +332,15 @@ pub enum TokenCommand {
 
 pub fn parse_cmdline() -> Args {
     Args::from_args()
+}
+
+fn read_pin() -> Fido2LuksResult<String> {
+    if let Some(pass) = authenticator.pin_input.as_ref() {
+        println!("pin : {}", pass)
+        Ok(pass)
+    } else {
+        util::read_password("Authenticator PIN", false)
+    }
 }
 
 pub fn run_cli() -> Fido2LuksResult<()> {

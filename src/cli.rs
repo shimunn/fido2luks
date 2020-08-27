@@ -94,7 +94,6 @@ pub struct AuthenticatorParameters {
 impl AuthenticatorParameters {
     fn read_pin(&self) -> Fido2LuksResult<String> {
         if let Some(pass) = self.pin_input.as_ref() {
-            println!("pin : {}", pass);
             Ok(pass.to_string())
         } else {
             util::read_password("Authenticator PIN", false)

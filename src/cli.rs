@@ -95,7 +95,7 @@ impl AuthenticatorParameters {
     fn read_pin(&self) -> Fido2LuksResult<String> {
         if let Some(pass) = self.pin_input.as_ref() {
             println!("pin : {}", pass);
-            Ok(pass)
+            Ok(pass.to_string())
         } else {
             util::read_password("Authenticator PIN", false)
         }
@@ -373,7 +373,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None
@@ -417,7 +417,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             ..
         } => {
             let pin = if authenticator.pin {
-                Some(read_pin()?)
+                Some(authenticator.read_pin()?)
             } else {
                 None
             };
@@ -533,7 +533,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None

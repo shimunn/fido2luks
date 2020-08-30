@@ -7,7 +7,7 @@ use ctap::{FidoCredential, FidoErrorKind};
 use failure::_core::fmt::{Display, Error, Formatter};
 use failure::_core::str::FromStr;
 use failure::_core::time::Duration;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::exit;
 use std::thread;
 
@@ -15,6 +15,7 @@ use crate::luks::{Fido2LuksToken, LuksDevice};
 use crate::util::sha256;
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::fs::File;
 use std::time::SystemTime;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -77,6 +78,10 @@ pub struct AuthenticatorParameters {
     #[structopt(short = "P", long = "pin")]
     pub pin: bool,
 
+    /// Location to read PIN from
+    #[structopt(long = "pin-source", env = "FIDO2LUKS_PIN_SOURCE")]
+    pub pin_source: Option<PathBuf>,
+
     /// Await for an authenticator to be connected, timeout after n seconds
     #[structopt(
         long = "await-dev",
@@ -85,6 +90,18 @@ pub struct AuthenticatorParameters {
         default_value = "15"
     )]
     pub await_time: u64,
+}
+
+impl AuthenticatorParameters {
+    fn read_pin(&self) -> Fido2LuksResult<String> {
+        if let Some(src) = self.pin_source.as_ref() {
+            let mut pin = String::new();
+            File::open(src)?.read_to_string(&mut pin)?;
+            Ok(pin)
+        } else {
+            util::read_password("Authenticator PIN", false)
+        }
+    }
 }
 
 #[derive(Debug, StructOpt)]
@@ -163,10 +180,6 @@ fn derive_secret(
         perform_challenge(&credentials, salt, timeout - start.elapsed().unwrap(), pin)?;
 
     Ok((sha256(&[salt, &unsalted[..]]), cred.clone()))
-}
-
-fn read_pin() -> Fido2LuksResult<String> {
-    util::read_password("Authenticator PIN", false)
 }
 
 #[derive(Debug, StructOpt)]
@@ -345,7 +358,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None
@@ -362,7 +375,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None
@@ -406,7 +419,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             ..
         } => {
             let pin = if authenticator.pin {
-                Some(read_pin()?)
+                Some(authenticator.read_pin()?)
             } else {
                 None
             };
@@ -522,7 +535,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
         } => {
             let pin_string;
             let pin = if authenticator.pin {
-                pin_string = read_pin()?;
+                pin_string = authenticator.read_pin()?;
                 Some(pin_string.as_ref())
             } else {
                 None

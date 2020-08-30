@@ -21,10 +21,7 @@ mod util;
 fn main() -> Fido2LuksResult<()> {
     match run_cli() {
         Err(e) => {
-            #[cfg(debug_assertions)]
             eprintln!("{:?}", e);
-            #[cfg(not(debug_assertions))]
-            eprintln!("{}", e);
             exit(e.exit_code())
         }
         _ => exit(0),

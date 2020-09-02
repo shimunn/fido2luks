@@ -9,10 +9,9 @@ url="https://github.com/shimunn/fido2luks"
 license=('MPL-2.0')
 
 build() {
-    return 0
+    cargo build --release --locked --all-features --target-dir=target
 }
 
 package() {
-    cd $srcdir
-    cargo install --no-track --locked --all-features --root="$pkgdir/usr/" --git=https://github.com/shimunn/fido2luks
+    install -Dm 755 target/release/${pkgname} -t "${pkgdir}/usr/bin"
 }

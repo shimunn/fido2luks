@@ -8,6 +8,7 @@ arch=('i686' 'x86_64' 'armv6h' 'armv7h')
 pkgdesc="Decrypt your LUKS partition using a FIDO2 compatible authenticator"
 url="https://github.com/shimunn/fido2luks"
 license=('MPL-2.0')
+source=('git+https://github.com/shimunn/fido2luks.git')
 
 build() {
     cargo build --release --locked --all-features --target-dir=target

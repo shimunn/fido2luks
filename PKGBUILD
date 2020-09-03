@@ -9,6 +9,12 @@ pkgdesc="Decrypt your LUKS partition using a FIDO2 compatible authenticator"
 url="https://github.com/shimunn/fido2luks"
 license=('MPL-2.0')
 
+pkgver() {
+	# Use tag version if possible otherwise concat project version and git ref
+	git describe --exact-match --tags HEAD 2> /dev/null || \
+		echo "$(cargo pkgid | cut -d'#' -f2).$(git describe --always)"
+}
+
 build() {
     cargo build --release --locked --all-features --target-dir=target
     ./target/release/fido2luks completions bash target

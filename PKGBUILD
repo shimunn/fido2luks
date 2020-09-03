@@ -11,8 +11,10 @@ license=('MPL-2.0')
 
 build() {
     cargo build --release --locked --all-features --target-dir=target
+    ./target/release/fido2luks completions bash target
 }
 
 package() {
     install -Dm 755 target/release/${pkgname} -t "${pkgdir}/usr/bin"
+    install -Dm 644 target/fido2luks.bash "${pkgdir}/usr/share/bash-completion/completions/fido2luks"
 }

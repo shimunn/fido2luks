@@ -1,6 +1,7 @@
 use crate::error::*;
 use crate::*;
 
+use structopt::clap::{AppSettings, Shell};
 use structopt::StructOpt;
 
 use ctap::{FidoCredential, FidoErrorKind};
@@ -303,6 +304,14 @@ pub enum Command {
     #[structopt(name = "connected")]
     Connected,
     Token(TokenCommand),
+    /// Generate bash completion scripts
+    #[structopt(name = "completions", setting = AppSettings::Hidden)]
+    GenerateCompletions {
+        /// Shell to generate completions for: bash, fish
+        #[structopt(possible_values = &["bash", "fish"])]
+        shell: String,
+        out_dir: PathBuf,
+    },
 }
 
 ///LUKS2 token related operations
@@ -725,5 +734,17 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 Ok(())
             }
         },
+        Command::GenerateCompletions { shell, out_dir } => {
+            Args::clap().gen_completions(
+                env!("CARGO_PKG_NAME"),
+                match shell.as_ref() {
+                    "bash" => Shell::Bash,
+                    "fish" => Shell::Fish,
+                    _ => unreachable!("structopt shouldn't allow us to reach this point"),
+                },
+                &out_dir,
+            );
+            Ok(())
+        }
     }
 }

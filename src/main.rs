@@ -4,15 +4,13 @@ extern crate ctap_hmac as ctap;
 #[macro_use]
 extern crate serde_derive;
 use crate::cli::*;
-use crate::config::*;
 use crate::device::*;
 use crate::error::*;
 use std::io;
-use std::path::PathBuf;
 use std::process::exit;
 
 mod cli;
-mod config;
+pub mod cli_args;
 mod device;
 mod error;
 mod luks;

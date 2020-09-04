@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::process::exit;
 
 mod cli;
+mod cli_args;
 mod config;
 mod device;
 mod error;

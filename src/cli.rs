@@ -3,7 +3,6 @@ use crate::luks::{Fido2LuksToken, LuksDevice};
 use crate::util::sha256;
 use crate::*;
 use cli_args::*;
-use config::*;
 
 use structopt::clap::Shell;
 use structopt::StructOpt;
@@ -21,9 +20,6 @@ use std::fs::File;
 use std::time::SystemTime;
 
 pub use cli_args::Args;
-
-mod cli_args;
-mod config;
 
 fn read_pin(ap: &AuthenticatorParameters) -> Fido2LuksResult<String> {
     if let Some(src) = ap.pin_source.as_ref() {

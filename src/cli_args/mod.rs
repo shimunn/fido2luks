@@ -1,10 +1,12 @@
-use crate::cli::config::*;
-use crate::*;
+use std::fmt::{Display, Error, Formatter};
+use std::path::PathBuf;
+use std::str::FromStr;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-use std::fmt::{Display, Error, Formatter};
-use std::str::FromStr;
+mod config;
+
+pub use config::*;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct HexEncoded(pub Vec<u8>);

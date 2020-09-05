@@ -7,10 +7,10 @@ use crate::cli::*;
 use crate::device::*;
 use crate::error::*;
 use std::io;
-use std::path::PathBuf;
 use std::process::exit;
 
 mod cli;
+pub mod cli_args;
 mod device;
 mod error;
 mod luks;

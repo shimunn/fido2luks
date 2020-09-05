@@ -1,10 +1,10 @@
+use crate::cli::config::*;
 use crate::*;
-
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-use failure::_core::fmt::{Display, Error, Formatter};
-use failure::_core::str::FromStr;
+use std::fmt::{Display, Error, Formatter};
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct HexEncoded(pub Vec<u8>);
@@ -112,7 +112,7 @@ pub struct SecretParameters {
         env = "FIDO2LUKS_SALT",
         default_value = "ask"
     )]
-    pub salt: InputSalt,
+    pub salt: SecretInput,
     /// Script used to obtain passwords, overridden by --interactive flag
     #[structopt(
         name = "password-helper",

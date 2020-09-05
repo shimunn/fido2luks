@@ -1,24 +1,29 @@
-use crate::cli_args::*;
 use crate::error::*;
 use crate::luks::{Fido2LuksToken, LuksDevice};
 use crate::util::sha256;
 use crate::*;
+use cli_args::*;
+use config::*;
 
 use structopt::clap::Shell;
 use structopt::StructOpt;
 
 use ctap::{FidoCredential, FidoErrorKind};
 
-use failure::_core::str::FromStr;
-use failure::_core::time::Duration;
 use std::io::{Read, Write};
-use std::process::exit;
+use std::str::FromStr;
 use std::thread;
+use std::time::Duration;
 
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::fs::File;
 use std::time::SystemTime;
+
+pub use cli_args::Args;
+
+mod cli_args;
+mod config;
 
 fn read_pin(ap: &AuthenticatorParameters) -> Fido2LuksResult<String> {
     if let Some(src) = ap.pin_source.as_ref() {
@@ -106,7 +111,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             let salt = if interactive || secret.password_helper == PasswordHelper::Stdin {
                 util::read_password_hashed("Password", false)
             } else {
-                secret.salt.obtain(&secret.password_helper)
+                secret.salt.obtain_sha256(&secret.password_helper)
             }?;
             let (secret, _cred) = derive_secret(
                 credentials.ids.0.as_slice(),
@@ -150,7 +155,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 if interactive || secret.password_helper == PasswordHelper::Stdin {
                     util::read_password_hashed(q, verify)
                 } else {
-                    secret.salt.obtain(&secret.password_helper)
+                    secret.salt.obtain_sha256(&secret.password_helper)
                 }
             };
             let other_secret = |salt_q: &str,
@@ -267,7 +272,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 if interactive || secret.password_helper == PasswordHelper::Stdin {
                     util::read_password_hashed(q, verify)
                 } else {
-                    secret.salt.obtain(&secret.password_helper)
+                    secret.salt.obtain_sha256(&secret.password_helper)
                 }
             };
 

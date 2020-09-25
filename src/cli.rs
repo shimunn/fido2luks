@@ -25,7 +25,7 @@ fn read_pin(ap: &AuthenticatorParameters) -> Fido2LuksResult<String> {
     if let Some(src) = ap.pin_source.as_ref() {
         let mut pin = String::new();
         File::open(src)?.read_to_string(&mut pin)?;
-        Ok(pin)
+        Ok(pin.trim_end_matches("\n").to_string()) //remove trailing newline
     } else {
         util::read_password("Authenticator PIN", false)
     }

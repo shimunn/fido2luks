@@ -21,5 +21,6 @@ build() {
 
 package() {
     install -Dm 755 target/release/${pkgname} -t "${pkgdir}/usr/bin"
+    install -Dm 755 ../pam_mount/fido2luksmounthelper.sh -t "${pkgdir}/usr/bin"
     install -Dm 644 ../fido2luks.bash "${pkgdir}/usr/share/bash-completion/completions/fido2luks"
 }

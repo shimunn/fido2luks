@@ -20,6 +20,8 @@ use std::fs::File;
 use std::time::SystemTime;
 
 pub use cli_args::Args;
+use std::iter::FromIterator;
+use std::path::PathBuf;
 
 fn read_pin(ap: &AuthenticatorParameters) -> Fido2LuksResult<String> {
     if let Some(src) = ap.pin_source.as_ref() {
@@ -64,7 +66,38 @@ fn derive_secret(
     let (unsalted, cred) =
         perform_challenge(&credentials, salt, timeout - start.elapsed().unwrap(), pin)?;
 
-    Ok((sha256(&[salt, &unsalted[..]]), cred.clone()))
+    let binary = sha256(&[salt, &unsalted[..]]);
+    Ok((binary, cred.clone()))
+}
+
+pub fn extend_creds_device(
+    creds: &[HexEncoded],
+    luks_dev: &mut LuksDevice,
+) -> Fido2LuksResult<Vec<HexEncoded>> {
+    let mut additional = HashSet::from_iter(creds.iter().cloned());
+    for token in luks_dev.tokens()? {
+        for cred in token?.1.credential {
+            let parsed = HexEncoded::from_str(cred.as_str())?;
+            additional.insert(parsed);
+        }
+    }
+    Ok(Vec::from_iter(additional.into_iter()))
+}
+
+pub fn read_password_pin_prefixed(
+    reader: impl Fn() -> Fido2LuksResult<String>,
+) -> Fido2LuksResult<(Option<String>, [u8; 32])> {
+    let read = reader()?;
+    let separator = ':';
+    let mut parts = read.split(separator);
+    let pin = parts.next().filter(|p| p.len() > 0).map(|p| p.to_string());
+    let password = match pin {
+        Some(ref pin) if read.len() > pin.len() => {
+            read.chars().skip(pin.len() + 1).collect::<String>()
+        }
+        _ => String::new(),
+    };
+    Ok((pin, util::sha256(&[password.as_bytes()])))
 }
 
 pub fn parse_cmdline() -> Args {
@@ -96,6 +129,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             authenticator,
             credentials,
             secret,
+            device,
         } => {
             let pin_string;
             let pin = if authenticator.pin {
@@ -104,16 +138,42 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 None
             };
-            let salt = if interactive || secret.password_helper == PasswordHelper::Stdin {
-                util::read_password_hashed("Password", false)
+            let (pin, salt) = match (
+                &secret.password_helper,
+                authenticator.pin,
+                authenticator.pin_prefixed,
+                args.interactive,
+            ) {
+                (Some(phelper), true, true, false) => {
+                    read_password_pin_prefixed(|| phelper.obtain())?
+                }
+                (Some(phelper), false, false, false) => (None, secret.salt.obtain_sha256(&phelper)),
+
+                (phelper, pin, _, true) => (
+                    if pin {
+                        pin_string = read_pin(authenticator)?;
+                        Some(pin_string.as_ref())
+                    } else {
+                        None
+                    },
+                    match phelper {
+                        None | Some(PasswordHelper::Stdin) => {
+                            util::read_password_hashed("Password", false)
+                        }
+                        Some(phelper) => secret.salt.obtain_sha256(&phelper),
+                    }?,
+                ),
+            };
+            let credentials = if let Some(dev) = device {
+                extend_creds_device(credentials.ids.0.as_slice(), &mut LuksDevice::load(dev)?)?
             } else {
-                secret.salt.obtain_sha256(&secret.password_helper)
-            }?;
+                credentials.ids.0
+            };
             let (secret, _cred) = derive_secret(
-                credentials.ids.0.as_slice(),
+                credentials.as_slice(),
                 &salt,
                 authenticator.await_time,
-                pin,
+                pin.as_deref(),
             )?;
             if *binary {
                 stdout.write_all(&secret[..])?;
@@ -129,7 +189,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             luks_mod,
             existing_secret: other_secret,
-            token,
+            auto_credential,
             ..
         }
         | Command::ReplaceKey {
@@ -139,7 +199,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             luks_mod,
             replacement: other_secret,
-            token,
+            remove_cred,
             ..
         } => {
             let pin = if authenticator.pin {
@@ -461,5 +521,30 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             );
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[test]
+    fn test_read_password_pin_prefixed() {
+        assert_eq!(
+            read_password_pin_prefixed(|| OK("1234:test")),
+            Ok((Some("1234".to_string()), util::sha256(&["test".as_bytes()])))
+        );
+        assert_eq!(
+            read_password_pin_prefixed(|| OK(":test")),
+            Ok((None, util::sha256(&["test".as_bytes()])))
+        );
+        assert_eq!(
+            read_password_pin_prefixed(|| OK("1234::test")),
+            Ok((
+                Some("1234".to_string()),
+                util::sha256(&[":test".as_bytes()])
+            ))
+        );
     }
 }

@@ -58,8 +58,13 @@ impl<T: Display + FromStr> FromStr for CommaSeparated<T> {
 #[derive(Debug, StructOpt)]
 pub struct Credentials {
     /// FIDO credential ids, separated by ',' generate using fido2luks credential
-    #[structopt(name = "credential-id", env = "FIDO2LUKS_CREDENTIAL_ID")]
-    pub ids: CommaSeparated<HexEncoded>,
+    #[structopt(
+        name = "credential-ids",
+        env = "FIDO2LUKS_CREDENTIAL_ID",
+        short = "c",
+        long = "creds"
+    )]
+    pub ids: Option<CommaSeparated<HexEncoded>>,
 }
 
 #[derive(Debug, StructOpt)]
@@ -68,9 +73,9 @@ pub struct AuthenticatorParameters {
     #[structopt(short = "P", long = "pin")]
     pub pin: bool,
 
-    /// Location to read PIN from
-    #[structopt(long = "pin-source", env = "FIDO2LUKS_PIN_SOURCE")]
-    pub pin_source: Option<PathBuf>,
+    /// Request PIN and password combined `pin:password` when using an password helper
+    #[structopt(long = "pin-prefixed")]
+    pub pin_prefixed: bool,
 
     /// Await for an authenticator to be connected, timeout after n seconds
     #[structopt(
@@ -90,13 +95,17 @@ pub struct LuksParameters {
     /// Try to unlock the device using a specifc keyslot, ignore all other slots
     #[structopt(long = "slot", env = "FIDO2LUKS_DEVICE_SLOT")]
     pub slot: Option<u32>,
+
+    /// Disable implicit use of LUKS2 tokens
+    #[structopt(long = "disable-token", env = "FIDO2LUKS_DISABLE_TOKEN")]
+    pub disable_token: bool,
 }
 
 #[derive(Debug, StructOpt, Clone)]
 pub struct LuksModParameters {
     /// Number of milliseconds required to derive the volume decryption key
     /// Defaults to 10ms when using an authenticator or the default by cryptsetup when using a password
-    #[structopt(long = "kdf-time", name = "kdf-time")]
+    #[structopt(long = "kdf-time", name = "kdf-time", env = "FIDO2LUKS_KDF_TIME")]
     pub kdf_time: Option<u64>,
 }
 
@@ -119,9 +128,10 @@ pub struct SecretParameters {
     #[structopt(
         name = "password-helper",
         env = "FIDO2LUKS_PASSWORD_HELPER",
+        long = "password-helper",
         default_value = "/usr/bin/env systemd-ask-password 'Please enter second factor for LUKS disk encryption!'"
     )]
-    pub password_helper: PasswordHelper,
+    pub password_helper: Option<PasswordHelper>,
 }
 #[derive(Debug, StructOpt)]
 pub struct Args {
@@ -138,7 +148,7 @@ pub struct OtherSecret {
     #[structopt(short = "d", long = "keyfile", conflicts_with = "fido_device")]
     pub keyfile: Option<PathBuf>,
     /// Use another fido device instead of a password
-    /// Note: this requires for the credential fot the other device to be passed as argument as well
+    /// Note: this requires for the credential for the other device to be passed as argument as well
     #[structopt(short = "f", long = "fido-device", conflicts_with = "keyfile")]
     pub fido_device: bool,
 }
@@ -147,8 +157,9 @@ pub struct OtherSecret {
 pub enum Command {
     #[structopt(name = "print-secret")]
     PrintSecret {
+        // version 0.3.0 will store use the lower case ascii encoded hex string making binary output unnecessary
         /// Prints the secret as binary instead of hex encoded
-        #[structopt(short = "b", long = "bin")]
+        #[structopt(hidden = true, short = "b", long = "bin")]
         binary: bool,
         #[structopt(flatten)]
         credentials: Credentials,
@@ -156,6 +167,9 @@ pub enum Command {
         authenticator: AuthenticatorParameters,
         #[structopt(flatten)]
         secret: SecretParameters,
+        /// Load credentials from LUKS header
+        #[structopt(env = "FIDO2LUKS_DEVICE")]
+        device: Option<PathBuf>,
     },
     /// Adds a generated key to the specified LUKS device
     #[structopt(name = "add-key")]
@@ -171,9 +185,9 @@ pub enum Command {
         /// Will wipe all other keys
         #[structopt(short = "e", long = "exclusive")]
         exclusive: bool,
-        /// Will add an token to your LUKS 2 header, including the credential id
-        #[structopt(short = "t", long = "token")]
-        token: bool,
+        /// Will generate an credential for only this device
+        #[structopt(short = "a", long = "auto-cred")]
+        auto_credential: bool,
         #[structopt(flatten)]
         existing_secret: OtherSecret,
         #[structopt(flatten)]
@@ -193,9 +207,9 @@ pub enum Command {
         /// Add the password and keep the key
         #[structopt(short = "a", long = "add-password")]
         add_password: bool,
-        /// Will add an token to your LUKS 2 header, including the credential id
-        #[structopt(short = "t", long = "token")]
-        token: bool,
+        /// Remove the affected credential for device header
+        #[structopt(short = "r", long = "remove-cred")]
+        remove_cred: bool,
         #[structopt(flatten)]
         replacement: OtherSecret,
         #[structopt(flatten)]
@@ -210,20 +224,6 @@ pub enum Command {
         name: String,
         #[structopt(flatten)]
         credentials: Credentials,
-        #[structopt(flatten)]
-        authenticator: AuthenticatorParameters,
-        #[structopt(flatten)]
-        secret: SecretParameters,
-        #[structopt(short = "r", long = "max-retries", default_value = "0")]
-        retries: i32,
-    },
-    /// Open the LUKS device using credentials embedded in the LUKS 2 header
-    #[structopt(name = "open-token")]
-    OpenToken {
-        #[structopt(flatten)]
-        luks: LuksParameters,
-        #[structopt(env = "FIDO2LUKS_MAPPER_NAME")]
-        name: String,
         #[structopt(flatten)]
         authenticator: AuthenticatorParameters,
         #[structopt(flatten)]

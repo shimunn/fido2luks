@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "fido2luks"
-version = "0.2.14"
+version = "0.2.15"
 dependencies = [
  "ctap_hmac",
  "failure",

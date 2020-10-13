@@ -198,7 +198,7 @@ mod test {
     fn input_salt_obtain() {
         assert_eq!(
             SecretInput::String("abc".into())
-                .obtain(&PasswordHelper::Stdin)
+                .obtain_sha256(&PasswordHelper::Stdin)
                 .unwrap(),
             [
                 186, 120, 22, 191, 143, 1, 207, 234, 65, 65, 64, 222, 93, 174, 34, 35, 176, 3, 97,

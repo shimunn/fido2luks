@@ -48,6 +48,7 @@ extended-description = "Decrypt your LUKS partition using a FIDO2 compatible aut
 assets = [
     ["target/release/fido2luks", "usr/bin/", "755"],
     ["fido2luks.bash", "usr/share/bash-completion/completions/fido2luks", "644"],
+    ["pam_mount/fido2luksmounthelper.sh", "usr/bin/", "755"],
     ["initramfs-tools/keyscript.sh", "/lib/cryptsetup/scripts/fido2luks", "755" ],
     ["initramfs-tools/hook/fido2luks.sh", "etc/initramfs-tools/hooks/", "755" ],
     ["initramfs-tools/fido2luks.conf", "etc/", "644"],

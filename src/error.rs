@@ -1,5 +1,9 @@
 use ctap::FidoError;
+use libcryptsetup_rs::LibcryptErr;
 use std::io;
+use std::io::ErrorKind;
+use std::string::FromUtf8Error;
+use Fido2LuksError::*;
 
 pub type Fido2LuksResult<T> = Result<T, Fido2LuksError>;
 
@@ -80,11 +84,6 @@ impl From<LuksError> for Fido2LuksError {
         Fido2LuksError::LuksError { cause: e }
     }
 }
-
-use libcryptsetup_rs::LibcryptErr;
-use std::io::ErrorKind;
-use std::string::FromUtf8Error;
-use Fido2LuksError::*;
 
 impl From<FidoError> for Fido2LuksError {
     fn from(e: FidoError) -> Self {

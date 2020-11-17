@@ -10,33 +10,33 @@ use std::process::Command;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum InputSalt {
+pub enum SecretInput {
     AskPassword,
     String(String),
     File { path: PathBuf },
 }
 
-impl Default for InputSalt {
+impl Default for SecretInput {
     fn default() -> Self {
-        InputSalt::AskPassword
+        SecretInput::AskPassword
     }
 }
 
-impl From<&str> for InputSalt {
+impl From<&str> for SecretInput {
     fn from(s: &str) -> Self {
         let mut parts = s.split(':');
         match parts.next() {
-            Some("ask") | Some("Ask") => InputSalt::AskPassword,
-            Some("file") => InputSalt::File {
+            Some("ask") | Some("Ask") => SecretInput::AskPassword,
+            Some("file") => SecretInput::File {
                 path: parts.collect::<Vec<_>>().join(":").into(),
             },
-            Some("string") => InputSalt::String(parts.collect::<Vec<_>>().join(":")),
+            Some("string") => SecretInput::String(parts.collect::<Vec<_>>().join(":")),
             _ => Self::default(),
         }
     }
 }
 
-impl FromStr for InputSalt {
+impl FromStr for SecretInput {
     type Err = Fido2LuksError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -44,21 +44,42 @@ impl FromStr for InputSalt {
     }
 }
 
-impl fmt::Display for InputSalt {
+impl fmt::Display for SecretInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         f.write_str(&match self {
-            InputSalt::AskPassword => "ask".to_string(),
-            InputSalt::String(s) => ["string", s].join(":"),
-            InputSalt::File { path } => ["file", path.display().to_string().as_str()].join(":"),
+            SecretInput::AskPassword => "ask".to_string(),
+            SecretInput::String(s) => ["string", s].join(":"),
+            SecretInput::File { path } => ["file", path.display().to_string().as_str()].join(":"),
         })
     }
 }
 
-impl InputSalt {
-    pub fn obtain(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<[u8; 32]> {
+impl SecretInput {
+    pub fn obtain_string(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<String> {
+        Ok(String::from_utf8(self.obtain(password_helper)?)?)
+    }
+
+    pub fn obtain(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<Vec<u8>> {
+        let mut secret = Vec::new();
+        match self {
+            SecretInput::File { path } => {
+                //TODO: replace with try_blocks
+                let mut do_io = || File::open(path)?.read_to_end(&mut secret);
+                do_io().map_err(|cause| Fido2LuksError::KeyfileError { cause })?;
+            }
+            SecretInput::AskPassword => {
+                secret.extend_from_slice(password_helper.obtain()?.as_bytes())
+            }
+
+            SecretInput::String(s) => secret.extend_from_slice(s.as_bytes()),
+        }
+        Ok(secret)
+    }
+
+    pub fn obtain_sha256(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<[u8; 32]> {
         let mut digest = digest::Context::new(&digest::SHA256);
         match self {
-            InputSalt::File { path } => {
+            SecretInput::File { path } => {
                 let mut do_io = || {
                     let mut reader = File::open(path)?;
                     let mut buf = [0u8; 512];
@@ -73,10 +94,7 @@ impl InputSalt {
                 };
                 do_io().map_err(|cause| Fido2LuksError::KeyfileError { cause })?;
             }
-            InputSalt::AskPassword => {
-                digest.update(password_helper.obtain()?.as_bytes());
-            }
-            InputSalt::String(s) => digest.update(s.as_bytes()),
+            _ => digest.update(self.obtain(password_helper)?.as_slice()),
         }
         let mut salt = [0u8; 32];
         salt.as_mut().copy_from_slice(digest.finish().as_ref());
@@ -157,23 +175,29 @@ mod test {
     #[test]
     fn input_salt_from_str() {
         assert_eq!(
-            "file:/tmp/abc".parse::<InputSalt>().unwrap(),
-            InputSalt::File {
+            "file:/tmp/abc".parse::<SecretInput>().unwrap(),
+            SecretInput::File {
                 path: "/tmp/abc".into()
             }
         );
         assert_eq!(
-            "string:abc".parse::<InputSalt>().unwrap(),
-            InputSalt::String("abc".into())
+            "string:abc".parse::<SecretInput>().unwrap(),
+            SecretInput::String("abc".into())
         );
-        assert_eq!("ask".parse::<InputSalt>().unwrap(), InputSalt::AskPassword);
-        assert_eq!("lol".parse::<InputSalt>().unwrap(), InputSalt::default());
+        assert_eq!(
+            "ask".parse::<SecretInput>().unwrap(),
+            SecretInput::AskPassword
+        );
+        assert_eq!(
+            "lol".parse::<SecretInput>().unwrap(),
+            SecretInput::default()
+        );
     }
 
     #[test]
     fn input_salt_obtain() {
         assert_eq!(
-            InputSalt::String("abc".into())
+            SecretInput::String("abc".into())
                 .obtain(&PasswordHelper::Stdin)
                 .unwrap(),
             [

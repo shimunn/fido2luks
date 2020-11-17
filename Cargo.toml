@@ -43,18 +43,10 @@ assets = [
     ["initramfs-tools/hook/fido2luks.sh", "etc/initramfs-tools/hooks/", "755" ],
     ["initramfs-tools/fido2luks.conf", "etc/", "644"],
 ]
+conf-files = ["/etc/fido2luks.conf"]
 
 [package.metadata.rpm]
 package = "fido2luks"
-depends = "$auto, cryptsetup"
-build-depends = "clang-devel, cryptsetup-devel"
-extended-description = "Decrypt your LUKS partition using a FIDO2 compatible authenticator"
-assets = [
-    ["target/release/fido2luks", "usr/bin/", "755"],
-    ["dracut/96luks-2fa", "usr/lib/dracut/modules.d/", "755" ],
-    ["dracut/dracut.conf.d/luks-2fa.conf", "etc/dracut.conf.d/", "755" ],
-    ["initramfs-tools/fido2luks.conf", "etc/", "644"],
-]
 
 [package.metadata.rpm.cargo]
 buildflags = ["--release"]

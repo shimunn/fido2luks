@@ -2,7 +2,7 @@
 
 This will allow you to unlock your LUKS encrypted disk with an FIDO2 compatible key.
 
-Note: This has only been tested under Fedora 31, [Ubuntu 20.04](initramfs-tools/), [NixOS](https://nixos.org/nixos/manual/#sec-luks-file-systems-fido2) using a Solo Key, Trezor Model T
+Note: This has only been tested under Fedora 31, [Ubuntu 20.04](initramfs-tools/), [NixOS](https://nixos.org/nixos/manual/#sec-luks-file-systems-fido2) using a Solo Key, Trezor Model T, YubiKey(fw >= [5.2.3](https://support.yubico.com/hc/en-us/articles/360016649319-YubiKey-5-2-3-Enhancements-to-FIDO-2-Support))
 
 ## Setup
 

@@ -41,6 +41,8 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-%{_bindir}/*
-%{_prefix}/*
-%config(noreplace) %{_sysconfdir}/*
+%{_bindir}/fido2luks
+%{_prefix}/lib/dracut/modules.d/96luks-2fa
+%config(noreplace) %{_sysconfdir}/dracut.conf.d/luks-2fa.conf
+%config(noreplace) %{_sysconfdir}/fido2luks.conf
+%doc README.md

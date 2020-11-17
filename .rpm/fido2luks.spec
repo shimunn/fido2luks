@@ -10,8 +10,8 @@ License:                     Mozilla Public License Version 2.0
 Group: Applications/System
 Source0: %{name}-%{version}.tar.gz
 URL: https://github.com/shimunn/fido2luks
-Requires: dracut, cryptsetup-libs >= 2.2.0
-BuildRequires: cargo, clang-devel, cryptsetup-devel, cryptsetup-libs
+Requires: dracut, cryptsetup >= 2.2.0, cryptsetup-libs >= 2.2.0
+BuildRequires: cargo, clang-devel, cryptsetup >= 2.2.0, cryptsetup-devel >= 2.2.0, cryptsetup-libs >= 2.2.0
 
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
 

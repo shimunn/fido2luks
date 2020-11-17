@@ -17,6 +17,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "fido2luks"
+version = "0.2.15"
+dependencies = [
+ "cargo-rpm",
+ "ctap_hmac",
+ "failure",
+ "hex",
+ "libcryptsetup-rs",
+ "ring",
+ "rpassword",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "structopt",
+]
+
+[[package]]
 name = "libcryptsetup-rs"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

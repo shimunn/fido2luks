@@ -34,6 +34,7 @@ mkdir -p %{buildroot}
 make -f .copr/Makefile install root=%{buildroot}
 install -Dm 755 -d dracut/96luks-2fa %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa
 install -Dm 755 dracut/dracut.conf.d/luks-2fa.conf %{buildroot}/%{_sysconfdir}/dracut.conf.d/luks-2fa.conf
+install -Dm 755 dracut/dracut.conf.d/luks-2fa.conf %{_prefix}/lib/dracut/dracut.conf.d/luks-2fa.conf
 install -Dm 644 initramfs-tools/fido2luks.conf %{buildroot}/%{_sysconfdir}/fido2luks.conf
 
 %clean
@@ -41,8 +42,8 @@ rm -rf %{buildroot}
 
 %files
 %defattr(-,root,root,-)
-# %{_bindir}/fido2luks
-# %{_prefix}/lib/dracut/modules.d/96luks-2fa
-# %config(noreplace) %{_sysconfdir}/dracut.conf.d/luks-2fa.conf
-# %config(noreplace) %{_sysconfdir}/fido2luks.conf
+/usr/bin/fido2luks
+/usr/lib/dracut/modules.d/96luks-2fa/*
+%config(noreplace) /etc/dracut.conf.d/luks-2fa.conf
+%config(noreplace) /etc/fido2luks.conf
 %doc README.md

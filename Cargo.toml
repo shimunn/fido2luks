@@ -64,3 +64,4 @@ buildflags = ["--release"]
 
 [package.metadata.rpm.targets]
 fido2luks = { path = "/usr/bin/fido2luks" }
+conf-files = ["/etc/fido2luks.conf"]

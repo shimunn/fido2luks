@@ -33,9 +33,9 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}
 make -f .copr/Makefile install root=%{buildroot}
 install -Dm 755 -d dracut/96luks-2fa %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa
-install -Dm 755 dracut/96luks-2fa/fido2luks.conf %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/fido2luks.conf
+install -Dm 644 dracut/96luks-2fa/fido2luks.conf %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/fido2luks.conf
 install -Dm 755 dracut/96luks-2fa/luks-2fa-generator.sh %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/luks-2fa-generator.sh
-install -Dm 755 dracut/96luks-2fa/luks-2fa.target %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/luks-2fa.target
+install -Dm 644 dracut/96luks-2fa/luks-2fa.target %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/luks-2fa.target
 install -Dm 755 dracut/96luks-2fa/module-setup.sh %{buildroot}/%{_prefix}/lib/dracut/modules.d/96luks-2fa/module-setup.sh
 install -Dm 644 dracut/dracut.conf.d/luks-2fa.conf %{buildroot}/%{_sysconfdir}/dracut.conf.d/luks-2fa.conf
 install -Dm 644 dracut/dracut.conf.d/luks-2fa.conf %{buildroot}/%{_prefix}/lib/dracut/dracut.conf.d/luks-2fa.conf
@@ -47,6 +47,10 @@ rm -rf %{buildroot}
 %files
 %attr(0775, root, root) "%{_bindir}/fido2luks"
 %attr(0775, root, root) "%{_prefix}/lib/dracut/modules.d/96luks-2fa"
+%attr(0644, root, root) "%{_prefix}/lib/dracut/modules.d/96luks-2fa/fido2luks.conf"
+%attr(0775, root, root) "%{_prefix}/lib/dracut/modules.d/96luks-2fa/luks-2fa-generator.sh"
+%attr(0644, root, root) "%{_prefix}/lib/dracut/modules.d/96luks-2fa/luks-2fa.target"
+%attr(0775, root, root) "%{_prefix}/lib/dracut/modules.d/96luks-2fa/module-setup.sh"
 %attr(0644, root, root) "%{_prefix}/lib/dracut/dracut.conf.d/luks-2fa.conf"
 %config(noreplace) "%{_sysconfdir}/dracut.conf.d/luks-2fa.conf"
 %config(noreplace) "%{_sysconfdir}/fido2luks.conf"

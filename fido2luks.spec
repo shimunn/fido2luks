@@ -54,3 +54,8 @@ rm -rf %{buildroot}
 %config(noreplace) "%{_sysconfdir}/dracut.conf.d/luks-2fa.conf"
 %config(noreplace) "%{_sysconfdir}/fido2luks.conf"
 %doc README.md
+
+%changelog
+* Wed Nov 18 2020 Akos Balla <akos.balla@sirc.hu>
+- create RPM spec (akos.balla@sirc.hu)
+

@@ -177,10 +177,10 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     )),
                 }
             };
-            let secret = |verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+            let secret = |q: &str, verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
                 derive_secret(
                     &credentials.ids.0,
-                    &salt("Password", verify)?,
+                    &salt(q, verify)?,
                     authenticator.await_time,
                     pin.as_deref(),
                 )
@@ -190,7 +190,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             match &args.command {
                 Command::AddKey { exclusive, .. } => {
                     let (existing_secret, _) = other_secret("Current password", false)?;
-                    let (new_secret, cred) = secret(true)?;
+                    let (new_secret, cred) = secret("Password to be added", true)?;
                     let added_slot = luks_dev.add_key(
                         &new_secret,
                         &existing_secret[..],
@@ -215,7 +215,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     Ok(())
                 }
                 Command::ReplaceKey { add_password, .. } => {
-                    let (existing_secret, _) = secret(false)?;
+                    let (existing_secret, _) = secret("Current password", false)?;
                     let (replacement_secret, cred) = other_secret("Replacement password", true)?;
                     let slot = if *add_password {
                         luks_dev.add_key(

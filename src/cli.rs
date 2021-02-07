@@ -71,6 +71,12 @@ pub fn parse_cmdline() -> Args {
     Args::from_args()
 }
 
+pub fn prompt_interaction(interactive: bool) {
+    if interactive {
+        println!("Authorize using your FIDO device");
+    }
+}
+
 pub fn run_cli() -> Fido2LuksResult<()> {
     let mut stdout = io::stdout();
     let args = parse_cmdline();
@@ -109,6 +115,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 secret.salt.obtain_sha256(&secret.password_helper)
             }?;
+            prompt_interaction(interactive);
             let (secret, _cred) = derive_secret(
                 credentials.ids.0.as_slice(),
                 &salt,
@@ -164,13 +171,16 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     } => Ok((util::read_keyfile(file)?, None)),
                     OtherSecret {
                         fido_device: true, ..
-                    } => Ok(derive_secret(
-                        &credentials.ids.0,
-                        &salt(salt_q, verify)?,
-                        authenticator.await_time,
-                        pin.as_deref(),
-                    )
-                    .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?),
+                    } => {
+                        prompt_interaction(interactive);
+                        Ok(derive_secret(
+                            &credentials.ids.0,
+                            &salt(salt_q, verify)?,
+                            authenticator.await_time,
+                            pin.as_deref(),
+                        )
+                        .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?)
+                    }
                     _ => Ok((
                         util::read_password(salt_q, verify)?.as_bytes().to_vec(),
                         None,
@@ -178,6 +188,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             };
             let secret = |q: &str, verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+                prompt_interaction(interactive);
                 derive_secret(
                     &credentials.ids.0,
                     &salt(q, verify)?,
@@ -274,6 +285,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
 
             // Cow shouldn't be necessary
             let secret = |credentials: Cow<'_, Vec<HexEncoded>>| {
+                prompt_interaction(interactive);
                 derive_secret(
                     credentials.as_ref(),
                     &salt("Password", false)?,

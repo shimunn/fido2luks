@@ -71,6 +71,12 @@ pub fn parse_cmdline() -> Args {
     Args::from_args()
 }
 
+pub fn prompt_interaction(interactive: bool) {
+    if interactive {
+        println!("Authorize using your FIDO device");
+    }
+}
+
 pub fn run_cli() -> Fido2LuksResult<()> {
     let mut stdout = io::stdout();
     let args = parse_cmdline();
@@ -109,6 +115,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 secret.salt.obtain_sha256(&secret.password_helper)
             }?;
+            prompt_interaction(interactive);
             let (secret, _cred) = derive_secret(
                 credentials.ids.0.as_slice(),
                 &salt,
@@ -164,23 +171,27 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     } => Ok((util::read_keyfile(file)?, None)),
                     OtherSecret {
                         fido_device: true, ..
-                    } => Ok(derive_secret(
-                        &credentials.ids.0,
-                        &salt(salt_q, verify)?,
-                        authenticator.await_time,
-                        pin.as_deref(),
-                    )
-                    .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?),
+                    } => {
+                        prompt_interaction(interactive);
+                        Ok(derive_secret(
+                            &credentials.ids.0,
+                            &salt(salt_q, verify)?,
+                            authenticator.await_time,
+                            pin.as_deref(),
+                        )
+                        .map(|(secret, cred)| (secret[..].to_vec(), Some(cred)))?)
+                    }
                     _ => Ok((
                         util::read_password(salt_q, verify)?.as_bytes().to_vec(),
                         None,
                     )),
                 }
             };
-            let secret = |verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+            let secret = |q: &str, verify: bool| -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+                prompt_interaction(interactive);
                 derive_secret(
                     &credentials.ids.0,
-                    &salt("Password", verify)?,
+                    &salt(q, verify)?,
                     authenticator.await_time,
                     pin.as_deref(),
                 )
@@ -190,7 +201,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             match &args.command {
                 Command::AddKey { exclusive, .. } => {
                     let (existing_secret, _) = other_secret("Current password", false)?;
-                    let (new_secret, cred) = secret(true)?;
+                    let (new_secret, cred) = secret("Password to be added", true)?;
                     let added_slot = luks_dev.add_key(
                         &new_secret,
                         &existing_secret[..],
@@ -215,7 +226,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     Ok(())
                 }
                 Command::ReplaceKey { add_password, .. } => {
-                    let (existing_secret, _) = secret(false)?;
+                    let (existing_secret, _) = secret("Current password", false)?;
                     let (replacement_secret, cred) = other_secret("Replacement password", true)?;
                     let slot = if *add_password {
                         luks_dev.add_key(
@@ -274,6 +285,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
 
             // Cow shouldn't be necessary
             let secret = |credentials: Cow<'_, Vec<HexEncoded>>| {
+                prompt_interaction(interactive);
                 derive_secret(
                     credentials.as_ref(),
                     &salt("Password", false)?,

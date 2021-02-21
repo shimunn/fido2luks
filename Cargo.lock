@@ -6,11 +6,13 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7d19dbd269b6321fd0b522160c9c7b26a0ed37754b6e177c230ef1725ce4abc"
 dependencies = [
- "abscissa_core",
- "cargo_metadata",
- "flate2",
- "gumdrop",
- "handlebars",
+dependencies = [
+ "ctap_hmac",
+ "failure",
+ "hex",
+ "libcryptsetup-rs",
+ "ring",
+ "rpassword",
  "serde",
  "tar",
  "thiserror",

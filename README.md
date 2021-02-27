@@ -124,14 +124,14 @@ The `hmac-secret` extension allows for an secret to be dervied on the FIDO2 devi
         +-------------------------------------------------------------------------------+
         |                                                                               |
         |                       +-----------------------------------------+             |
-        |                       |            FIDO2 device                 |             |
+        |                       |               FIDO2 device              |             |
         |                       |                                         |             |
         |                       |                                         |             |
 +-------+--------+   +------+   |                      +---------------+  |             |             +------------------------+
-| Salt/Password  +-> |sha256+------------------------> |               |  |             v             |    LUKS header         |
-+----------------+   +------+   |                      |               |  |                           |                        |              +---------------+
-                                |                      |               |  |        +--------+         +------------------------+  +-------->  |Disk master key|
-                                |                      |  sha256_hmac  +---------> | sha256 +-------> | Keyslot 1              |              +---------------+
+| Salt/Password  +-> |sha256+------------------------> |               |  |             v             |      LUKS header       |
++----------------+   +------+   |                      |               |  |                           |                        |           +---------------+   
+                                |                      |               |  |        +--------+         +------------------------+-------->  |Disk master key| 
+                                |                      |  sha256_hmac  +---------> | sha256 +-------> | Keyslot 1              |           +---------------+ 
 +----------------+              |  +----------+        |               |  |        +--------+         +------------------------+
 | FIDO credential+---------------> |Credential| +----> |               |  |                           | Keyslot 2              |
 +----------------+              |  |secret    |        |               |  |                           +------------------------+
@@ -141,7 +141,9 @@ The `hmac-secret` extension allows for an secret to be dervied on the FIDO2 devi
                                 +-----------------------------------------+
 
 ```
-Since all these components build upon each other losing or damaging just one of them will render the disk undecryptable, therefore it's of paramount importance to backup the LUKS header and ideally set an backup password or utilise more than one FIDO2 device
+Since all these components build upon each other losing or damaging just one of them will render the disk undecryptable, it's threfore of paramount importance to backup the LUKS header and ideally set an backup password
+or utilise more than one FIDO2 device. Each additional credential and password combination will require it's own LUKS keyslot since the credential secret is randomly generated for each new credential and will thus result
+in a completly different secret.
 
 ## License
 

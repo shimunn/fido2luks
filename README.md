@@ -115,6 +115,34 @@ sudo -E fido2luks -i replace-key /dev/disk/by-uuid/<DISK_UUID>
 sudo rm -rf /usr/lib/dracut/modules.d/96luks-2fa /etc/dracut.conf.d/luks-2fa.conf /etc/fido2luks.conf
 ```
 
+## Theory of operation
+
+fido2luks builds on two basic building blocks, LUKS as an abstraction over linux disk encryption and and the FIDO2 extension [`hmac-secret`](https://fidoalliance.org/specs/fido-v2.0-rd-20180702/fido-client-to-authenticator-protocol-v2.0-rd-20180702.html#sctn-hmac-secret-extension).
+The `hmac-secret` extension allows for an secret to be dervied on the FIDO2 device from two inputs, the user supplied salt/password/keyfile and another secret contained within the FID2 device. The output of the `hmac-secret` function will then be used to decrypt the LUKS header which in turn is used to decrypt the disk.
+```
+
+        +-------------------------------------------------------------------------------+
+        |                                                                               |
+        |                       +-----------------------------------------+             |
+        |                       |            FIDO2 device                 |             |
+        |                       |                                         |             |
+        |                       |                                         |             |
++-------+--------+   +------+   |                      +---------------+  |             |             +------------------------+
+| Salt/Password  +-> |sha256+------------------------> |               |  |             v             |    LUKS header         |
++----------------+   +------+   |                      |               |  |                           |                        |              +---------------+
+                                |                      |               |  |        +--------+         +------------------------+  +-------->  |Disk master key|
+                                |                      |  sha256_hmac  +---------> | sha256 +-------> | Keyslot 1              |              +---------------+
++----------------+              |  +----------+        |               |  |        +--------+         +------------------------+
+| FIDO credential+---------------> |Credential| +----> |               |  |                           | Keyslot 2              |
++----------------+              |  |secret    |        |               |  |                           +------------------------+
+                                |  +----------+        +---------------+  |
+                                |                                         |
+                                |                                         |
+                                +-----------------------------------------+
+
+```
+Since all these components build upon each other losing or damaging just one of them will render the disk undecryptable, therefore it's of paramount importance to backup the LUKS header and ideally set an backup password or utilise more than one FIDO2 device
+
 ## License
 
 Licensed under

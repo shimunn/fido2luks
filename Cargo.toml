@@ -24,6 +24,7 @@ libcryptsetup-rs = "0.4.1"
 serde_json = "1.0.51"
 serde_derive = "1.0.106"
 serde = "1.0.106"
+cargo-rpm = "0.8.0"
 
 [build-dependencies]
 ctap_hmac = { version="0.4.2", features = ["request_multiple"] }
@@ -54,3 +55,12 @@ assets = [
     ["initramfs-tools/fido2luks.conf", "etc/", "644"],
 ]
 conf-files = ["/etc/fido2luks.conf"]
+
+[package.metadata.rpm]
+package = "fido2luks"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+fido2luks = { path = "/usr/bin/fido2luks" }

@@ -16,7 +16,11 @@ EOF
         fi
     fi
 
-    options="--pin --salt $FIDO2LUKS_SALT"
+    options="--salt $FIDO2LUKS_SALT"
+
+    if [ "$FIDO2LUKS_ASK_PIN" == 1 ]; then
+        options="$options --pin"
+    fi
 
     if [ -n "$FIDO2LUKS_DEVICE_SLOT" ]; then
         options="$options --slot $FIDO2LUKS_DEVICE_SLOT"

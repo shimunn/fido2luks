@@ -1,0 +1,51 @@
+#!/usr/bin/ash
+
+run_hook() {
+    modprobe -a -q dm-crypt >/dev/null 2>&1
+    . /etc/fido2luks.conf
+
+    if [ -z "$cryptdevice" ]; then
+        device="$FIDO2LUKS_DEVICE"
+        dmname="$FIDO2LUKS_MAPPER_NAME"
+    else
+        IFS=: read cryptdev dmname _cryptoptions <<EOF
+$cryptdevice
+EOF
+        if ! device=$(resolve_device "${cryptdev}" ${rootdelay}); then
+            return 1
+        fi
+    fi
+
+    options="--pin --salt $FIDO2LUKS_SALT"
+
+    if [ -n "$FIDO2LUKS_DEVICE_SLOT" ]; then
+        options="$options --slot $FIDO2LUKS_DEVICE_SLOT"
+    fi
+
+    if [ -n "$FIDO2LUKS_DEVICE_AWAIT" ]; then
+        options="$options --await-dev $FIDO2LUKS_DEVICE_AWAIT"
+    fi
+
+    # HACK: /dev/tty is hardcoded in rpassword, but not accessible from the ramdisk
+    # Temporary link it to /dev/tty1
+    mv /dev/tty /dev/tty.back
+    ln -s /dev/tty1 /dev/tty
+
+    printf "\nAuthentication is required to access the $dmname volume at $device\n"
+
+    if [ -z "$FIDO2LUKS_CREDENTIAL_ID" ]; then
+        fido2luks open-token $device $dmname $options
+    else
+        fido2luks open $device $dmname $FIDO2LUKS_CREDENTIAL_ID $options
+    fi
+    exit_code=$?
+
+    # Restore /dev/tty
+    mv /dev/tty.back /dev/tty
+
+    if [ $exit_code -ne 0 ]; then
+        printf '\n'
+        read -s -p 'Press Enter to continue'
+        printf '\n'
+    fi
+}

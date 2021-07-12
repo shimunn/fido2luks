@@ -10,6 +10,7 @@
 ```shell
 fido2luks credential
 ```
+
 3. Generate salt (random string)
 
 ```shell
@@ -34,4 +35,18 @@ Keyslot (`FIDO2LUKS_DEVICE_SLOT`) can be obtained from the output of
 
 ```shell
 cryptsetup luksDump <block_device>
+```
+
+6. Add fido2luks hook to /etc/mkinitcpio.conf
+
+Before or instead of `encrypt` hook, for example:
+
+```shell
+HOOKS=(base udev autodetect modconf keyboard block fido2luks filesystems fsck)
+```
+
+7. Recreate initial ramdisk
+
+```shell
+mkinitcpio -p <preset>
 ```

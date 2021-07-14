@@ -236,9 +236,9 @@ pub enum Command {
     Credential {
         #[structopt(flatten)]
         authenticator: AuthenticatorParameters,
-        /// Name to be displayed on the authenticator if it has a display
-        #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME")]
-        name: Option<String>,
+        /// Name to be displayed on the authenticator display
+        #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME", default_value = "fido2luks")]
+        name: String,
     },
     /// Check if an authenticator is connected
     #[structopt(name = "connected")]

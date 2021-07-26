@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.2.18"
+version = "0.2.19"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
@@ -14,7 +14,7 @@ categories = ["command-line-utilities"]
 license = "MPL-2.0"
 
 [dependencies]
-ctap_hmac = { version="0.4.2", features = ["request_multiple"] }
+ctap_hmac = { version="0.4.5", features = ["request_multiple"] }
 hex = "0.3.2"
 ring = "0.13.5"
 failure = "0.1.5"
@@ -26,7 +26,7 @@ serde_derive = "1.0.106"
 serde = "1.0.106"
 
 [build-dependencies]
-ctap_hmac = { version="0.4.2", features = ["request_multiple"] }
+ctap_hmac = { version="0.4.5", features = ["request_multiple"] }
 hex = "0.3.2"
 ring = "0.13.5"
 failure = "0.1.5"

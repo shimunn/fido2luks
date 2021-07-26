@@ -101,6 +101,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
+name = "bstr"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a40b47ad93e1a5404e6c18dec46b628214fee441c70f4ab5d6942142cc268a3d"
+dependencies = [
+ "lazy_static",
+ "memchr",
+ "regex-automata",
+ "serde",
+]
+
+[[package]]
 name = "byteorder"
 version = "1.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -245,6 +257,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "csv"
+version = "1.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22813a6dc45b335f9bade10bf7271dc477e81113e89eb251a0bc2a8a81c536e1"
+dependencies = [
+ "bstr",
+ "csv-core",
+ "itoa",
+ "ryu",
+ "serde",
+]
+
+[[package]]
 name = "csv-core"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -255,14 +280,14 @@ dependencies = [
 
 [[package]]
 name = "ctap_hmac"
-version = "0.4.2"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5fec79b66e3a7bc6a7ace0f4c98f0748892b36d3c5c317fadfce0344fd185dc"
+checksum = "e9c22d4c95aeeb4e2d41e823912d5460cfa1ebf672363eb97b32fa7c91cab89a"
 dependencies = [
  "byteorder",
  "cbor-codec",
  "crossbeam",
- "csv-core",
+ "csv",
  "derive_builder",
  "failure",
  "failure_derive",
@@ -271,6 +296,8 @@ dependencies = [
  "rand 0.6.5",
  "ring",
  "rust-crypto",
+ "serde",
+ "serde_derive",
  "untrusted",
 ]
 
@@ -377,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "fido2luks"
-version = "0.2.18"
+version = "0.2.19"
 dependencies = [
  "ctap_hmac",
  "failure",
@@ -823,6 +850,12 @@ dependencies = [
  "regex-syntax",
  "thread_local",
 ]
+
+[[package]]
+name = "regex-automata"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c230d73fb8d8c1b9c0b3135c5142a8acee3a0558fb8db5cf1cb65f8d7862132"
 
 [[package]]
 name = "regex-syntax"

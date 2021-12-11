@@ -19,6 +19,10 @@ use structopt::StructOpt;
 fn main() {
     // generate completion scripts, zsh does panic for some reason
     for shell in Shell::variants().iter().filter(|shell| **shell != "zsh") {
-        Args::clap().gen_completions(env!("CARGO_PKG_NAME"), Shell::from_str(shell).unwrap(), ".");
+        Args::clap().gen_completions(
+            env!("CARGO_PKG_NAME"),
+            Shell::from_str(shell).unwrap(),
+            env!("CARGO_MANIFEST_DIR"),
+        );
     }
 }

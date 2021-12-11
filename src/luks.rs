@@ -111,6 +111,20 @@ impl LuksDevice {
         Ok(())
     }
 
+    pub fn remove_token_slot(&mut self, slot: u32) -> Fido2LuksResult<()> {
+        let mut remove = HashSet::new();
+        for token in self.tokens()? {
+            let (id, token) = token?;
+            if token.keyslots.contains(&slot.to_string()) {
+                remove.insert(id);
+            }
+        }
+        for rm in remove {
+            self.remove_token(rm)?;
+        }
+        Ok(())
+    }
+
     pub fn update_token(&mut self, token: u32, data: &Fido2LuksToken) -> Fido2LuksResult<()> {
         self.require_luks2()?;
         self.device
@@ -192,7 +206,9 @@ impl LuksDevice {
             old_secret,
             CryptActivateFlags::empty(),
         )?;
-        self.device.keyslot_handle().change_by_passphrase(
+
+        // slot should stay the same but better be safe than sorry
+        let slot = self.device.keyslot_handle().change_by_passphrase(
             Some(slot),
             Some(slot),
             old_secret,
@@ -221,10 +237,16 @@ impl LuksDevice {
         name: &str,
         secret: &[u8],
         slot_hint: Option<u32>,
+        dry_run: bool,
     ) -> Fido2LuksResult<u32> {
         self.device
             .activate_handle()
-            .activate_by_passphrase(Some(name), slot_hint, secret, CryptActivateFlags::empty())
+            .activate_by_passphrase(
+                Some(name).filter(|_| !dry_run),
+                slot_hint,
+                secret,
+                CryptActivateFlags::empty(),
+            )
             .map_err(LuksError::activate)
     }
 
@@ -233,6 +255,7 @@ impl LuksDevice {
         name: &str,
         secret: impl Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>,
         slot_hint: Option<u32>,
+        dry_run: bool,
     ) -> Fido2LuksResult<u32> {
         if !self.is_luks2()? {
             return Err(LuksError::Luks2Required.into());
@@ -276,7 +299,7 @@ impl LuksDevice {
                 .chain(std::iter::once(None).take(slots.is_empty() as usize)), // Try all slots as last resort
         );
         for slot in slots {
-            match self.activate(name, &secret, slot) {
+            match self.activate(name, &secret, slot, dry_run) {
                 Err(Fido2LuksError::WrongSecret) => (),
                 res => return res,
             }

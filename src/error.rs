@@ -29,6 +29,10 @@ pub enum Fido2LuksError {
     WrongSecret,
     #[fail(display = "not an utf8 string")]
     StringEncodingError { cause: FromUtf8Error },
+    #[fail(display = "not an hex string: {}", string)]
+    HexEncodingError { string: String },
+    #[fail(display = "couldn't obtain at least one credential")]
+    InsufficientCredentials,
 }
 
 impl Fido2LuksError {
@@ -50,6 +54,8 @@ pub enum AskPassError {
     IO(io::Error),
     #[fail(display = "provided passwords don't match")]
     Mismatch,
+    #[fail(display = "failed to call password helper")]
+    FailedHelper,
 }
 
 #[derive(Debug, Fail)]

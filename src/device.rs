@@ -19,7 +19,7 @@ pub fn make_credential_id(
     }
     let request = request.build().unwrap();
     let make_credential = |device: &mut FidoDevice| {
-        if let Some(pin) = pin {
+        if let Some(pin) = pin.filter(|_| device.needs_pin()) {
             device.unlock(pin)?;
         }
         device.make_hmac_credential(&request)
@@ -44,7 +44,7 @@ pub fn perform_challenge<'a>(
         .build()
         .unwrap();
     let get_assertion = |device: &mut FidoDevice| {
-        if let Some(pin) = pin {
+        if let Some(pin) = pin.filter(|_| device.needs_pin()) {
             device.unlock(pin)?;
         }
         device.get_hmac_assertion(&request, &util::sha256(&[&salt[..]]), None)
@@ -56,6 +56,17 @@ pub fn perform_challenge<'a>(
         Some(timeout),
     )?;
     Ok((secret, credential))
+}
+
+pub fn may_require_pin() -> Fido2LuksResult<bool> {
+    for di in ctap::get_devices()? {
+        if let Ok(dev) = FidoDevice::new(&di) {
+            if dev.needs_pin() {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 pub fn get_devices() -> Fido2LuksResult<Vec<FidoDevice>> {

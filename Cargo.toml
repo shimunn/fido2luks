@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.3.0"
+version = "0.3.0-alpha"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 
@@ -14,19 +14,19 @@ categories = ["command-line-utilities"]
 license = "MPL-2.0"
 
 [dependencies]
-ctap_hmac = { version="0.4.2", features = ["request_multiple"] }
+ctap_hmac = { version="0.4.5", features = ["request_multiple"] }
 hex = "0.3.2"
 ring = "0.13.5"
 failure = "0.1.5"
 rpassword = "4.0.1"
 structopt = "0.3.2"
-libcryptsetup-rs = "0.4.1"
+libcryptsetup-rs = "0.4.2"
 serde_json = "1.0.51"
-serde_derive = "1.0.106"
-serde = "1.0.106"
+serde_derive = "1.0.116"
+serde = "1.0.116"
 
 [build-dependencies]
-ctap_hmac = { version="0.4.2", features = ["request_multiple"] }
+ctap_hmac = { version="0.4.5", features = ["request_multiple"] }
 hex = "0.3.2"
 ring = "0.13.5"
 failure = "0.1.5"

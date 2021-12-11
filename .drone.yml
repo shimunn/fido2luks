@@ -8,22 +8,20 @@ steps:
      - rustup component add rustfmt
      - cargo fmt --all -- --check
  - name: test
-   image: ubuntu:focal
+   image: shimun/fido2luks@sha256:6d0b4017bffbec5fac8f25d383d68671fcc9930efb02e97ce5ea81acf0060ece
    environment:
     DEBIAN_FRONTEND: noninteractive
    commands:
-    - apt update && apt install -y cargo libkeyutils-dev libclang-dev clang pkg-config libcryptsetup-dev 
     - cargo test --locked
  - name: publish
-   image: ubuntu:focal
+   image: shimun/fido2luks@sha256:6d0b4017bffbec5fac8f25d383d68671fcc9930efb02e97ce5ea81acf0060ece
    environment:
     DEBIAN_FRONTEND: noninteractive
     CARGO_REGISTRY_TOKEN:
      from_secret: cargo_tkn
    commands:
     - grep -E 'version ?= ?"${DRONE_TAG}"' -i Cargo.toml || (printf "incorrect crate/tag version" && exit 1)
-    - apt update && apt install -y cargo libkeyutils-dev libclang-dev clang pkg-config libcryptsetup-dev 
-    - cargo package --all-features
-    - cargo publish --all-features
+    - cargo package --all-features --allow-dirty
+    - cargo publish --all-features --allow-dirty
    when:
     event: tag

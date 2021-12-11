@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
+use std::process::Stdio;
 use std::str::FromStr;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,11 +56,17 @@ impl fmt::Display for SecretInput {
 }
 
 impl SecretInput {
-    pub fn obtain_string(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<String> {
+    pub fn obtain_string(
+        &self,
+        password_helper: Option<impl FnOnce() -> Fido2LuksResult<String>>,
+    ) -> Fido2LuksResult<String> {
         Ok(String::from_utf8(self.obtain(password_helper)?)?)
     }
 
-    pub fn obtain(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<Vec<u8>> {
+    pub fn obtain(
+        &self,
+        password_helper: Option<impl FnOnce() -> Fido2LuksResult<String>>,
+    ) -> Fido2LuksResult<Vec<u8>> {
         let mut secret = Vec::new();
         match self {
             SecretInput::File { path } => {
@@ -67,16 +74,22 @@ impl SecretInput {
                 let mut do_io = || File::open(path)?.read_to_end(&mut secret);
                 do_io().map_err(|cause| Fido2LuksError::KeyfileError { cause })?;
             }
-            SecretInput::AskPassword => {
-                secret.extend_from_slice(password_helper.obtain()?.as_bytes())
-            }
+            SecretInput::AskPassword => secret.extend_from_slice(
+                password_helper.ok_or_else(|| Fido2LuksError::AskPassError {
+                    cause: AskPassError::FailedHelper,
+                })?()?
+                .as_bytes(),
+            ),
 
             SecretInput::String(s) => secret.extend_from_slice(s.as_bytes()),
         }
         Ok(secret)
     }
 
-    pub fn obtain_sha256(&self, password_helper: &PasswordHelper) -> Fido2LuksResult<[u8; 32]> {
+    pub fn obtain_sha256(
+        &self,
+        password_helper: Option<impl FnOnce() -> Fido2LuksResult<String>>,
+    ) -> Fido2LuksResult<[u8; 32]> {
         let mut digest = digest::Context::new(&digest::SHA256);
         match self {
             SecretInput::File { path } => {
@@ -151,11 +164,13 @@ impl PasswordHelper {
         use PasswordHelper::*;
         match self {
             Systemd => unimplemented!(),
-            Stdin => Ok(util::read_password("Password", true)?),
+            Stdin => Ok(util::read_password("Password", true, false)?),
             Script(password_helper) => {
                 let password = Command::new("sh")
                     .arg("-c")
                     .arg(&password_helper)
+                    .stdin(Stdio::inherit())
+                    .stderr(Stdio::inherit())
                     .output()
                     .map_err(|e| Fido2LuksError::AskPassError {
                         cause: error::AskPassError::IO(e),
@@ -198,7 +213,7 @@ mod test {
     fn input_salt_obtain() {
         assert_eq!(
             SecretInput::String("abc".into())
-                .obtain(&PasswordHelper::Stdin)
+                .obtain_sha256(Some(|| Ok("123456".to_string())))
                 .unwrap(),
             [
                 186, 120, 22, 191, 143, 1, 207, 234, 65, 65, 64, 222, 93, 174, 34, 35, 176, 3, 97,

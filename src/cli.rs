@@ -259,6 +259,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             name,
             retries,
+            allow_discards,
             ..
         }
         | Command::OpenToken {
@@ -267,6 +268,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             secret,
             name,
             retries,
+            allow_discards,
         } => {
             let pin_string;
             let pin = if authenticator.pin {
@@ -299,7 +301,9 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             loop {
                 let secret = match &args.command {
                     Command::Open { credentials, .. } => secret(Cow::Borrowed(&credentials.ids.0))
-                        .and_then(|(secret, _cred)| luks_dev.activate(&name, &secret, luks.slot)),
+                        .and_then(|(secret, _cred)| {
+                            luks_dev.activate(&name, &secret, luks.slot, *allow_discards)
+                        }),
                     Command::OpenToken { .. } => luks_dev.activate_token(
                         &name,
                         Box::new(|credentials: Vec<String>| {
@@ -311,6 +315,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                                 .map(|(secret, cred)| (secret, hex::encode(&cred.id)))
                         }),
                         luks.slot,
+                        *allow_discards,
                     ),
                     _ => unreachable!(),
                 };

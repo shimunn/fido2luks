@@ -216,6 +216,9 @@ pub enum Command {
         secret: SecretParameters,
         #[structopt(short = "r", long = "max-retries", default_value = "0")]
         retries: i32,
+        /// Pass SSD trim instructions to the underlying block device
+        #[structopt(long = "allow-discards")]
+        allow_discards: bool,
     },
     /// Open the LUKS device using credentials embedded in the LUKS 2 header
     #[structopt(name = "open-token")]
@@ -230,6 +233,9 @@ pub enum Command {
         secret: SecretParameters,
         #[structopt(short = "r", long = "max-retries", default_value = "0")]
         retries: i32,
+        /// Pass SSD trim instructions to the underlying block device
+        #[structopt(long = "allow-discards")]
+        allow_discards: bool,
     },
     /// Generate a new FIDO credential
     #[structopt(name = "credential")]

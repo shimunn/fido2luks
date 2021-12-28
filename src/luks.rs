@@ -1,8 +1,8 @@
 use crate::error::*;
 
 use libcryptsetup_rs::{
-    CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo, EncryptionFormat, KeyslotInfo,
-    TokenInput,
+    CryptActivateFlag, CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo,
+    EncryptionFormat, KeyslotInfo, TokenInput,
 };
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -238,15 +238,15 @@ impl LuksDevice {
         secret: &[u8],
         slot_hint: Option<u32>,
         dry_run: bool,
+        allow_discard: bool,
     ) -> Fido2LuksResult<u32> {
+        let mut flags = CryptActivateFlags::empty();
+        if allow_discard {
+            flags = CryptActivateFlags::new(vec![CryptActivateFlag::AllowDiscards]);
+        }
         self.device
             .activate_handle()
-            .activate_by_passphrase(
-                Some(name).filter(|_| !dry_run),
-                slot_hint,
-                secret,
-                CryptActivateFlags::empty(),
-            )
+            .activate_by_passphrase(Some(name).filter(|_| !dry_run), slot_hint, secret, flags)
             .map_err(LuksError::activate)
     }
 
@@ -256,6 +256,7 @@ impl LuksDevice {
         secret: impl Fn(Vec<String>) -> Fido2LuksResult<([u8; 32], String)>,
         slot_hint: Option<u32>,
         dry_run: bool,
+        allow_discard: bool,
     ) -> Fido2LuksResult<u32> {
         if !self.is_luks2()? {
             return Err(LuksError::Luks2Required.into());
@@ -299,7 +300,7 @@ impl LuksDevice {
                 .chain(std::iter::once(None).take(slots.is_empty() as usize)), // Try all slots as last resort
         );
         for slot in slots {
-            match self.activate(name, &secret, slot, dry_run) {
+            match self.activate(name, &secret, slot, dry_run, allow_discard) {
                 Err(Fido2LuksError::WrongSecret) => (),
                 res => return res,
             }

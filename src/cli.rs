@@ -433,6 +433,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             credentials,
             retries,
             dry_run,
+            allow_discards,
+            ..
         } => {
             let inputs = |q: &str, verify: bool| -> Fido2LuksResult<(Option<String>, [u8; 32])> {
                 get_input(&secret, &authenticator, args.interactive, q, verify)
@@ -469,7 +471,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     });
                     secret(Cow::Borrowed(&credentials.0)).and_then(|(secret, cred)| {
                         log(&|| format!("credential used: {}", hex::encode(&cred.id)));
-                        luks_dev.activate(&name, &secret, luks.slot, *dry_run)
+                        luks_dev.activate(&name, &secret, luks.slot, *dry_run, *allow_discards)
                     })
                 } else if luks2 && !luks.disable_token {
                     luks_dev.activate_token(
@@ -487,6 +489,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         }),
                         luks.slot,
                         *dry_run,
+                        *allow_discards,
                     )
                 } else if luks_dev.is_luks2()? && luks.disable_token {
                     // disable-token is mostly cosmetic in this instance

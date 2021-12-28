@@ -244,6 +244,9 @@ pub enum Command {
         /// Perform the whole procedure without mounting the LUKS volume on success
         #[structopt(long = "dry-run")]
         dry_run: bool,
+        /// Pass SSD trim instructions to the underlying block device
+        #[structopt(long = "allow-discards")]
+        allow_discards: bool,
     },
     /// Generate a new FIDO credential
     #[structopt(name = "credential")]

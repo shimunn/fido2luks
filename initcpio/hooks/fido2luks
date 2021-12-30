@@ -8,7 +8,7 @@ run_hook() {
         device="$FIDO2LUKS_DEVICE"
         dmname="$FIDO2LUKS_MAPPER_NAME"
     else
-        IFS=: read cryptdev dmname _cryptoptions <<EOF
+        IFS=: read cryptdev dmname cryptoptions <<EOF
 $cryptdevice
 EOF
         if ! device=$(resolve_device "${cryptdev}" ${rootdelay}); then
@@ -16,7 +16,22 @@ EOF
         fi
     fi
 
-    options="--salt $FIDO2LUKS_SALT"
+    options=""
+
+    if [ -n "$cryptoptions" ]; then
+        for i in ${cryptoptions//,/ }
+        do
+            if [ "$i" = "allow-discards" ]; then
+	        options="--allow-discards"
+            fi
+	done
+    fi
+
+    if [ -z "$options" ] && [ "$FIDO2LUKS_ALLOW_DISCARDS" == 1 ]; then
+	options="--allow-discards"
+    fi
+
+    options="$options --salt $FIDO2LUKS_SALT"
 
     if [ "$FIDO2LUKS_ASK_PIN" == 1 ]; then
         options="$options --pin"

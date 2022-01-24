@@ -502,7 +502,11 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         match e {
                             Fido2LuksError::WrongSecret if retries > 0 => {}
                             Fido2LuksError::AuthenticatorError { ref cause }
-                                if cause.kind() == FidoErrorKind::Timeout && retries > 0 => {}
+                                if match cause.kind() {
+                                    FidoErrorKind::Timeout => true,
+                                    FidoErrorKind::CborError(e) if e.code() == 0x33 => true,
+                                    _ => false,
+                                } && retries > 0 => {}
 
                             e => return Err(e),
                         };

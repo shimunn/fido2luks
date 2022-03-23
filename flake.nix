@@ -16,7 +16,7 @@
       forPkgs = pkgs:
         let
           naersk-lib = naersk.lib."${pkgs.system}";
-          buildInputs = with pkgs; [ cryptsetup ];
+          buildInputs = with pkgs; [ cryptsetup libusb.dev ];
           LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
           nativeBuildInputs = with pkgs; [
             pkgconfig

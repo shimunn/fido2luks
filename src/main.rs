@@ -1,6 +1,5 @@
 #[macro_use]
 extern crate failure;
-extern crate ctap_hmac as ctap;
 #[macro_use]
 extern crate serde_derive;
 use crate::cli::*;

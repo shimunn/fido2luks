@@ -1,4 +1,4 @@
-use ctap::FidoError;
+use anyhow;
 use libcryptsetup_rs::LibcryptErr;
 use std::io;
 use std::io::ErrorKind;
@@ -14,7 +14,7 @@ pub enum Fido2LuksError {
     #[fail(display = "unable to read keyfile: {}", cause)]
     KeyfileError { cause: io::Error },
     #[fail(display = "authenticator error: {}", cause)]
-    AuthenticatorError { cause: ctap::FidoError },
+    AuthenticatorError { cause: anyhow::Error },
     #[fail(display = "no authenticator found, please ensure your device is plugged in")]
     NoAuthenticatorError,
     #[fail(display = " {}", cause)]
@@ -33,6 +33,12 @@ pub enum Fido2LuksError {
     HexEncodingError { string: String },
     #[fail(display = "couldn't obtain at least one credential")]
     InsufficientCredentials,
+}
+
+impl From<anyhow::Error> for Fido2LuksError {
+    fn from(cause: anyhow::Error) -> Self {
+        Fido2LuksError::AuthenticatorError { cause }
+    }
 }
 
 impl Fido2LuksError {
@@ -88,12 +94,6 @@ impl LuksError {
 impl From<LuksError> for Fido2LuksError {
     fn from(e: LuksError) -> Self {
         Fido2LuksError::LuksError { cause: e }
-    }
-}
-
-impl From<FidoError> for Fido2LuksError {
-    fn from(e: FidoError) -> Self {
-        AuthenticatorError { cause: e }
     }
 }
 

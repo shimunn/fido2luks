@@ -1,84 +1,99 @@
 use crate::error::*;
 
 use crate::util;
-use ctap::{
-    self, extensions::hmac::HmacExtension, request_multiple_devices, FidoAssertionRequestBuilder,
-    FidoCredential, FidoCredentialRequestBuilder, FidoDevice, FidoError, FidoErrorKind,
-};
+use ctap_hid_fido2;
+use ctap_hid_fido2::get_assertion_params;
+use ctap_hid_fido2::get_assertion_with_args;
+use ctap_hid_fido2::get_info;
+use ctap_hid_fido2::make_credential_params;
+use ctap_hid_fido2::public_key_credential_descriptor::PublicKeyCredentialDescriptor;
+use ctap_hid_fido2::public_key_credential_user_entity::PublicKeyCredentialUserEntity;
+use ctap_hid_fido2::GetAssertionArgsBuilder;
+use ctap_hid_fido2::LibCfg;
+use ctap_hid_fido2::MakeCredentialArgsBuilder;
 use std::time::Duration;
 
 const RP_ID: &str = "fido2luks";
 
+fn lib_cfg() -> LibCfg {
+    let mut cfg = LibCfg::init();
+    cfg.enable_log = false;
+    cfg
+}
+
 pub fn make_credential_id(
     name: Option<&str>,
     pin: Option<&str>,
-) -> Fido2LuksResult<FidoCredential> {
-    let mut request = FidoCredentialRequestBuilder::default().rp_id(RP_ID);
-    if let Some(user_name) = name {
-        request = request.user_name(user_name);
+) -> Fido2LuksResult<PublicKeyCredentialDescriptor> {
+    let mut req = MakeCredentialArgsBuilder::new(RP_ID, &[])
+        .extensions(&[make_credential_params::Extension::HmacSecret(Some(true))]);
+    if let Some(pin) = pin {
+        req = req.pin(pin);
+    } else {
+        req = req.without_pin_and_uv();
     }
-    let request = request.build().unwrap();
-    let make_credential = |device: &mut FidoDevice| {
-        if let Some(pin) = pin.filter(|_| device.needs_pin()) {
-            device.unlock(pin)?;
-        }
-        device.make_hmac_credential(&request)
-    };
-    Ok(request_multiple_devices(
-        get_devices()?
-            .iter_mut()
-            .map(|device| (device, &make_credential)),
-        None,
-    )?)
+    if let Some(_) = name {
+        req = req.rkparam(&PublicKeyCredentialUserEntity::new(
+            Some(b"00"),
+            name.clone(),
+            name,
+        ));
+    }
+    let resp = ctap_hid_fido2::make_credential_with_args(&lib_cfg(), &req.build())?;
+    Ok(resp.credential_descriptor)
 }
 
 pub fn perform_challenge<'a>(
-    credentials: &'a [&'a FidoCredential],
+    credentials: &'a [&'a PublicKeyCredentialDescriptor],
     salt: &[u8; 32],
     timeout: Duration,
     pin: Option<&str>,
-) -> Fido2LuksResult<([u8; 32], &'a FidoCredential)> {
-    let request = FidoAssertionRequestBuilder::default()
-        .rp_id(RP_ID)
-        .credentials(credentials)
-        .build()
-        .unwrap();
-    let get_assertion = |device: &mut FidoDevice| {
-        if let Some(pin) = pin.filter(|_| device.needs_pin()) {
-            device.unlock(pin)?;
-        }
-        device.get_hmac_assertion(&request, &util::sha256(&[&salt[..]]), None)
-    };
-    let (credential, (secret, _)) = request_multiple_devices(
-        get_devices()?
-            .iter_mut()
-            .map(|device| (device, &get_assertion)),
-        Some(timeout),
-    )?;
-    Ok((secret, credential))
-}
-
-pub fn may_require_pin() -> Fido2LuksResult<bool> {
-    for di in ctap::get_devices()? {
-        if let Ok(dev) = FidoDevice::new(&di) {
-            if dev.needs_pin() {
-                return Ok(true);
+) -> Fido2LuksResult<([u8; 32], &'a PublicKeyCredentialDescriptor)> {
+    let mut req = GetAssertionArgsBuilder::new(RP_ID, &[]).extensions(&[
+        get_assertion_params::Extension::HmacSecret(Some(util::sha256(&[&salt[..]]))),
+    ]);
+    if let Some(pin) = pin {
+        req = req.pin(pin);
+    } else {
+        req = req.without_pin_and_uv();
+    }
+    let resp = get_assertion_with_args(&lib_cfg(), &req.build())?;
+    fn dbg_hex<'a>(name: &str, vec: &'a Vec<u8>) -> &'a Vec<u8> {
+        dbg!((name, hex::encode(&vec)));
+        vec
+    }
+    let cred_used2 = credentials.iter().copied().find(|cred| {
+        resp.iter()
+            .any(|att| dbg_hex("att", &att.credential_id) == dbg_hex("cred", &cred.id))
+    });
+    for att in resp {
+        for ext in att.extensions.iter() {
+            match ext {
+                get_assertion_params::Extension::HmacSecret(Some(secret)) => {
+                    dbg!(cred_used2);
+                    //TODO: eliminate unwrap
+                    let cred_used = credentials
+                        .iter()
+                        .copied()
+                        .find(|cred| {
+                            dbg_hex("att", &att.credential_id) == dbg_hex("cred", &cred.id)
+                        })
+                        .unwrap();
+                    return Ok((secret.clone(), cred_used));
+                }
+                _ => continue,
             }
         }
     }
-    Ok(false)
+    //TODO: create fitting error
+    Err(Fido2LuksError::WrongSecret)
 }
 
-pub fn get_devices() -> Fido2LuksResult<Vec<FidoDevice>> {
-    let mut devices = Vec::with_capacity(2);
-    for di in ctap::get_devices()? {
-        match FidoDevice::new(&di) {
-            Err(e) => match e.kind() {
-                FidoErrorKind::ParseCtap | FidoErrorKind::DeviceUnsupported => (),
-                err => return Err(FidoError::from(err).into()),
-            },
-            Ok(dev) => devices.push(dev),
-        }
-    }
-    Ok(devices)
+pub fn may_require_pin() -> Fido2LuksResult<bool> {
+    let info = get_info(&lib_cfg())?;
+    let needs_pin = info
+        .options
+        .iter()
+        .any(|(name, val)| &name[..] == "clientPin" && *val);
+    Ok(needs_pin)
 }

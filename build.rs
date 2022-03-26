@@ -1,7 +1,6 @@
 #![allow(warnings)]
 #[macro_use]
 extern crate failure;
-extern crate ctap_hmac as ctap;
 
 #[path = "src/cli_args/mod.rs"]
 mod cli_args;

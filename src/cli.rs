@@ -4,7 +4,7 @@ use crate::util::sha256;
 use crate::*;
 pub use cli_args::Args;
 use cli_args::*;
-use ctap::{FidoCredential, FidoErrorKind};
+use ctap_hid_fido2::public_key_credential_descriptor::PublicKeyCredentialDescriptor;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::io::Write;
@@ -26,31 +26,31 @@ fn derive_secret(
     salt: &[u8; 32],
     timeout: u64,
     pin: Option<&str>,
-) -> Fido2LuksResult<([u8; 32], FidoCredential)> {
+) -> Fido2LuksResult<([u8; 32], PublicKeyCredentialDescriptor)> {
     if credentials.is_empty() {
         return Err(Fido2LuksError::InsufficientCredentials);
     }
     let timeout = Duration::from_secs(timeout);
     let start = SystemTime::now();
 
-    while let Ok(el) = start.elapsed() {
-        if el > timeout {
-            return Err(error::Fido2LuksError::NoAuthenticatorError);
-        }
-        if get_devices()
-            .map(|devices| !devices.is_empty())
-            .unwrap_or(false)
-        {
-            break;
-        }
-        thread::sleep(Duration::from_millis(500));
-    }
+    //while let Ok(el) = start.elapsed() {
+    //    if el > timeout {
+    //        return Err(error::Fido2LuksError::NoAuthenticatorError);
+    //    }
+    //    if get_devices()
+    //        .map(|devices| !devices.is_empty())
+    //        .unwrap_or(false)
+    //    {
+    //        break;
+    //    }
+    //    thread::sleep(Duration::from_millis(500));
+    //}
 
     let credentials = credentials
         .iter()
-        .map(|hex| FidoCredential {
+        .map(|hex| PublicKeyCredentialDescriptor {
             id: hex.0.clone(),
-            public_key: None,
+            ctype: Default::default(),
         })
         .collect::<Vec<_>>();
     let credentials = credentials.iter().collect::<Vec<_>>();
@@ -289,7 +289,10 @@ pub fn run_cli() -> Fido2LuksResult<()> {
 
             let other_secret = |salt_q: &str,
                                 verify: bool|
-             -> Fido2LuksResult<(Vec<u8>, Option<FidoCredential>)> {
+             -> Fido2LuksResult<(
+                Vec<u8>,
+                Option<PublicKeyCredentialDescriptor>,
+            )> {
                 match other_secret {
                     OtherSecret {
                         keyfile: Some(file),
@@ -314,14 +317,15 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     )),
                 }
             };
-            let secret = |q: &str,
-                          verify: bool,
-                          credentials: &[HexEncoded]|
-             -> Fido2LuksResult<([u8; 32], FidoCredential)> {
-                let (pin, salt) = inputs(q, verify)?;
-                prompt_interaction(interactive);
-                derive_secret(credentials, &salt, authenticator.await_time, pin.as_deref())
-            };
+            let secret =
+                |q: &str,
+                 verify: bool,
+                 credentials: &[HexEncoded]|
+                 -> Fido2LuksResult<([u8; 32], PublicKeyCredentialDescriptor)> {
+                    let (pin, salt) = inputs(q, verify)?;
+                    prompt_interaction(interactive);
+                    derive_secret(credentials, &salt, authenticator.await_time, pin.as_deref())
+                };
             // Non overlap
             match &args.command {
                 Command::AddKey {
@@ -501,9 +505,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     Err(e) => {
                         match e {
                             Fido2LuksError::WrongSecret if retries > 0 => {}
-                            Fido2LuksError::AuthenticatorError { ref cause }
-                                if cause.kind() == FidoErrorKind::Timeout && retries > 0 => {}
-
+                            //Fido2LuksError::AuthenticatorError { ref cause }
+                            //    if cause.kind() == FidoErrorKind::Timeout && retries > 0 => {}
                             e => return Err(e),
                         };
                         retries -= 1;
@@ -516,13 +519,14 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             }
         }
-        Command::Connected => match get_devices() {
-            Ok(ref devs) if !devs.is_empty() => {
-                println!("Found {} devices", devs.len());
-                Ok(())
-            }
-            _ => exit(1),
-        },
+        Command::Connected => unimplemented!("Not supported by current backend"),
+        //Command::Connected => match get_devices() {
+        //    Ok(ref devs) if !devs.is_empty() => {
+        //        println!("Found {} devices", devs.len());
+        //        Ok(())
+        //    }
+        //    _ => exit(1),
+        //},
         Command::Token(cmd) => match cmd {
             TokenCommand::List {
                 device,

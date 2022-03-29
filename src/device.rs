@@ -20,6 +20,7 @@ const RP_ID: &str = "fido2luks";
 fn lib_cfg() -> LibCfg {
     let mut cfg = LibCfg::init();
     cfg.enable_log = false;
+    cfg.keep_alive_msg = String::new();
     cfg
 }
 

@@ -2,8 +2,10 @@ use crate::error::*;
 
 use crate::util;
 use ctap_hid_fido2;
+use ctap_hid_fido2::HidParam;
 use ctap_hid_fido2::get_assertion_params;
 use ctap_hid_fido2::get_assertion_with_args;
+use ctap_hid_fido2::get_fidokey_devices;
 use ctap_hid_fido2::get_info;
 use ctap_hid_fido2::make_credential_params;
 use ctap_hid_fido2::public_key_credential_descriptor::PublicKeyCredentialDescriptor;
@@ -49,34 +51,31 @@ pub fn perform_challenge<'a>(
     timeout: Duration,
     pin: Option<&str>,
 ) -> Fido2LuksResult<([u8; 32], &'a PublicKeyCredentialDescriptor)> {
+    if credentials.is_empty() {
+        return Err(Fido2LuksError::InsufficientCredentials);
+    }
     let mut req = GetAssertionArgsBuilder::new(RP_ID, &[]).extensions(&[
         get_assertion_params::Extension::HmacSecret(Some(util::sha256(&[&salt[..]]))),
     ]);
+    for cred in credentials {
+        req = req.add_credential_id(&cred.id);
+    }
     if let Some(pin) = pin {
         req = req.pin(pin);
     } else {
         req = req.without_pin_and_uv();
     }
     let resp = get_assertion_with_args(&lib_cfg(), &req.build())?;
-    fn dbg_hex<'a>(name: &str, vec: &'a Vec<u8>) -> &'a Vec<u8> {
-        dbg!((name, hex::encode(&vec)));
-        vec
-    }
-    let cred_used2 = credentials.iter().copied().find(|cred| {
-        resp.iter()
-            .any(|att| dbg_hex("att", &att.credential_id) == dbg_hex("cred", &cred.id))
-    });
     for att in resp {
         for ext in att.extensions.iter() {
             match ext {
                 get_assertion_params::Extension::HmacSecret(Some(secret)) => {
-                    dbg!(cred_used2);
                     //TODO: eliminate unwrap
                     let cred_used = credentials
                         .iter()
                         .copied()
                         .find(|cred| {
-                            dbg_hex("att", &att.credential_id) == dbg_hex("cred", &cred.id)
+                            att.credential_id == cred.id
                         })
                         .unwrap();
                     return Ok((secret.clone(), cred_used));
@@ -96,4 +95,8 @@ pub fn may_require_pin() -> Fido2LuksResult<bool> {
         .iter()
         .any(|(name, val)| &name[..] == "clientPin" && *val);
     Ok(needs_pin)
+}
+
+pub fn get_devices() -> Fido2LuksResult<Vec<(String, HidParam)>> {
+    Ok(get_fidokey_devices())
 }

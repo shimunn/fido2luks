@@ -519,14 +519,13 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 }
             }
         }
-        Command::Connected => unimplemented!("Not supported by current backend"),
-        //Command::Connected => match get_devices() {
-        //    Ok(ref devs) if !devs.is_empty() => {
-        //        println!("Found {} devices", devs.len());
-        //        Ok(())
-        //    }
-        //    _ => exit(1),
-        //},
+        Command::Connected => match get_devices() {
+            Ok(ref devs) if !devs.is_empty() => {
+                println!("Found {} devices", devs.len());
+                Ok(())
+            }
+            _ => exit(1),
+        },
         Command::Token(cmd) => match cmd {
             TokenCommand::List {
                 device,

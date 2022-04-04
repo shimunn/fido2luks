@@ -11,7 +11,6 @@ use std::io::Write;
 use std::iter::FromIterator;
 use std::path::Path;
 use std::str::FromStr;
-use std::thread;
 use std::time::Duration;
 use std::time::SystemTime;
 use structopt::clap::Shell;

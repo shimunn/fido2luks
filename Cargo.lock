@@ -254,9 +254,8 @@ dependencies = [
 
 [[package]]
 name = "ctap-hid-fido2"
-version = "2.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66d39f08d7b0949b5c82b2d3cc5d721eb47c8d42f889da8ee722b6b42db7a408"
+version = "3.0.0"
+source = "git+https://github.com/gebogebogebo/ctap-hid-fido2.git?branch=develop#a7b108e1fcafd38a10f990cf28a41fc06b27cd15"
 dependencies = [
  "aes",
  "anyhow",
@@ -747,9 +746,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.16"
+version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4af2ec4714533fcdf07e886f17025ace8b997b9ce51204ee69b6da831c3da57"
+checksum = "632d02bff7f874a36f33ea8bb416cd484b90cc66c1194b1a1110d067a7013f58"
 dependencies = [
  "proc-macro2",
 ]

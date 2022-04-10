@@ -2,6 +2,7 @@ use crate::error::*;
 
 use crate::util;
 use ctap_hid_fido2;
+use ctap_hid_fido2::FidoKeyHidFactory;
 use ctap_hid_fido2::fidokey::get_assertion::get_assertion_params;
 use ctap_hid_fido2::fidokey::make_credential::make_credential_params;
 use ctap_hid_fido2::fidokey::GetAssertionArgsBuilder;
@@ -9,7 +10,6 @@ use ctap_hid_fido2::fidokey::MakeCredentialArgsBuilder;
 use ctap_hid_fido2::get_fidokey_devices;
 use ctap_hid_fido2::public_key_credential_descriptor::PublicKeyCredentialDescriptor;
 use ctap_hid_fido2::public_key_credential_user_entity::PublicKeyCredentialUserEntity;
-use ctap_hid_fido2::FidoKeyHid;
 use ctap_hid_fido2::HidInfo;
 use ctap_hid_fido2::LibCfg;
 use std::time::Duration;
@@ -26,6 +26,7 @@ fn lib_cfg() -> LibCfg {
 pub fn make_credential_id(
     name: Option<&str>,
     pin: Option<&str>,
+    exclude: &[&PublicKeyCredentialDescriptor],
 ) -> Fido2LuksResult<PublicKeyCredentialDescriptor> {
     let mut req = MakeCredentialArgsBuilder::new(RP_ID, &[])
         .extensions(&[make_credential_params::Extension::HmacSecret(Some(true))]);
@@ -33,6 +34,9 @@ pub fn make_credential_id(
         req = req.pin(pin);
     } else {
         req = req.without_pin_and_uv();
+    }
+    for cred in exclude {
+        req = req.exclude_authenticator(cred.id.as_ref());
     }
     if let Some(_) = name {
         req = req.rkparam(&PublicKeyCredentialUserEntity::new(
@@ -45,7 +49,7 @@ pub fn make_credential_id(
     let mut err: Option<Fido2LuksError> = None;
     let req = req.build();
     for dev in devices {
-        let handle = FidoKeyHid::new(&vec![dev.param], &lib_cfg()).unwrap();
+        let handle = FidoKeyHidFactory::create_by_params(&vec![dev.param], &lib_cfg()).unwrap();
         match handle.make_credential_with_args(&req) {
             Ok(resp) => return Ok(resp.credential_descriptor),
             Err(e) => err = Some(e.into()),
@@ -100,7 +104,7 @@ pub fn perform_challenge<'a>(
     let mut err: Option<Fido2LuksError> = None;
     let req = req.build();
     for dev in devices {
-        let handle = FidoKeyHid::new(&vec![dev.param], &lib_cfg()).unwrap();
+        let handle = FidoKeyHidFactory::create_by_params(&vec![dev.param], &lib_cfg()).unwrap();
         match handle.get_assertion_with_args(&req) {
             Ok(resp) => return process_response(resp),
             Err(e) => err = Some(e.into()),
@@ -111,8 +115,8 @@ pub fn perform_challenge<'a>(
 
 pub fn may_require_pin() -> Fido2LuksResult<bool> {
     for dev in get_devices()? {
-        let dev = FidoKeyHid::new(&vec![dev.param], &lib_cfg()).unwrap();
-        let info = dev.get_info()?;
+        let handle = FidoKeyHidFactory::create_by_params(&vec![dev.param], &lib_cfg()).unwrap();
+        let info = handle.get_info()?;
         let needs_pin = info
             .options
             .iter()

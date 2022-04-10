@@ -181,7 +181,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 None
             };
-            let cred = make_credential_id(Some(name.as_ref()), pin)?;
+            let cred = make_credential_id(Some(name.as_ref()), pin, &[])?;
             println!("{}", hex::encode(&cred.id));
             Ok(())
         }
@@ -332,7 +332,14 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     generate_credential,
                     ..
                 } => {
-                    let (existing_secret, _) = other_secret("Current password", false)?;
+                    let (existing_secret, existing_credential) =
+                        other_secret("Current password", false)?;
+                    let excluded_credential = existing_credential.as_ref();
+                    let exclude_list = excluded_credential
+                        .as_ref()
+                        .map(core::slice::from_ref)
+                        .unwrap_or_default();
+                    existing_credential.iter().for_each(|cred| log(&|| format!("using credential to unlock container: {}", hex::encode(&cred.id))));
                     let (new_secret, cred) = if *generate_credential && luks2 {
                         let cred = make_credential_id(
                             Some(derive_credential_name(luks.device.as_path()).as_str()),
@@ -343,6 +350,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                                 None
                             })
                             .as_deref(),
+                            dbg!(exclude_list),
                         )?;
                         log(&|| {
                             format!(

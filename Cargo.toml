@@ -1,6 +1,6 @@
 [package]
 name = "fido2luks"
-version = "0.3.0-alpha"
+version = "0.3.1-alpha"
 authors = ["shimunn <shimun@shimun.net>"]
 edition = "2018"
 

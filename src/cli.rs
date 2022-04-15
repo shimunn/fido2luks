@@ -330,6 +330,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                 Command::AddKey {
                     exclusive,
                     generate_credential,
+                    comment,
                     ..
                 } => {
                     let (existing_secret, existing_credential) =
@@ -339,7 +340,14 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         .as_ref()
                         .map(core::slice::from_ref)
                         .unwrap_or_default();
-                    existing_credential.iter().for_each(|cred| log(&|| format!("using credential to unlock container: {}", hex::encode(&cred.id))));
+                    existing_credential.iter().for_each(|cred| {
+                        log(&|| {
+                            format!(
+                                "using credential to unlock container: {}",
+                                hex::encode(&cred.id)
+                            )
+                        })
+                    });
                     let (new_secret, cred) = if *generate_credential && luks2 {
                         let cred = make_credential_id(
                             Some(derive_credential_name(luks.device.as_path()).as_str()),
@@ -372,6 +380,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         Some(&cred.id[..])
                             .filter(|_| !luks.disable_token || *generate_credential)
                             .filter(|_| luks2),
+                        comment.as_deref().map(String::from),
                     )?;
                     if *exclusive {
                         let destroyed = luks_dev.remove_keyslots(&[added_slot])?;
@@ -407,6 +416,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                                 .filter(|_| !luks.disable_token)
                                 .filter(|_| luks2)
                                 .map(|cred| &cred.id[..]),
+                            None,
                         )
                     } else {
                         let slot = luks_dev.replace_key(
@@ -554,8 +564,13 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                         continue;
                     }
                     println!(
-                        "{}:\n\tSlots: {}\n\tCredentials: {}",
+                        "{}{}:\n\tSlots: {}\n\tCredentials: {}",
                         id,
+                        token
+                            .comment
+                            .as_deref()
+                            .map(|comment| format!(" - {}", comment))
+                            .unwrap_or_default(),
                         if token.keyslots.is_empty() {
                             "None".into()
                         } else {
@@ -581,6 +596,7 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             TokenCommand::Add {
                 device,
                 credentials,
+                comment,
                 slot,
             } => {
                 let mut dev = LuksDevice::load(device)?;
@@ -592,7 +608,11 @@ pub fn run_cli() -> Fido2LuksResult<()> {
                     }
                 }
                 let count = if tokens.is_empty() {
-                    dev.add_token(&Fido2LuksToken::with_credentials(&credentials.0, *slot))?;
+                    dev.add_token(&Fido2LuksToken::with_credentials(
+                        &credentials.0,
+                        *slot,
+                        comment.as_deref().map(String::from),
+                    ))?;
                     1
                 } else {
                     tokens.len()

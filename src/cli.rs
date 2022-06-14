@@ -181,7 +181,8 @@ pub fn run_cli() -> Fido2LuksResult<()> {
             } else {
                 None
             };
-            let cred = make_credential_id(Some(name.as_ref()), pin, &[])?;
+            let cred =
+                make_credential_id(Some(name.as_str()).filter(|name| name.len() > 0), pin, &[])?;
             println!("{}", hex::encode(&cred.id));
             Ok(())
         }

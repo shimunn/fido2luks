@@ -2,7 +2,6 @@ use crate::error::*;
 
 use crate::util;
 use ctap_hid_fido2;
-use ctap_hid_fido2::FidoKeyHidFactory;
 use ctap_hid_fido2::fidokey::get_assertion::get_assertion_params;
 use ctap_hid_fido2::fidokey::make_credential::make_credential_params;
 use ctap_hid_fido2::fidokey::GetAssertionArgsBuilder;
@@ -10,6 +9,7 @@ use ctap_hid_fido2::fidokey::MakeCredentialArgsBuilder;
 use ctap_hid_fido2::get_fidokey_devices;
 use ctap_hid_fido2::public_key_credential_descriptor::PublicKeyCredentialDescriptor;
 use ctap_hid_fido2::public_key_credential_user_entity::PublicKeyCredentialUserEntity;
+use ctap_hid_fido2::FidoKeyHidFactory;
 use ctap_hid_fido2::HidInfo;
 use ctap_hid_fido2::LibCfg;
 use std::time::Duration;
@@ -39,7 +39,7 @@ pub fn make_credential_id(
         req = req.exclude_authenticator(cred.id.as_ref());
     }
     if let Some(_) = name {
-        req = req.rkparam(&PublicKeyCredentialUserEntity::new(
+        req = req.user_entity(&PublicKeyCredentialUserEntity::new(
             Some(b"00"),
             name.clone(),
             name,

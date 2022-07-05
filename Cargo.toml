@@ -16,7 +16,7 @@ license = "MPL-2.0"
 [dependencies]
 # ctap-hid-fido2 = "2.2.3" 
 # ctap-hid-fido2 = { path = "../ctap-hid-fido2" }
-ctap-hid-fido2 = { git = "https://github.com/shimunn/ctap-hid-fido2.git", branch = "user_entity" }
+ctap-hid-fido2 = { git = "https://github.com/shimunn/ctap-hid-fido2.git", branch = "explicit_uv" }
 hex = "0.3.2"
 ring = "0.16.5"
 failure = "0.1.5"
@@ -31,7 +31,7 @@ anyhow = "1.0.56"
 [build-dependencies]
 # ctap-hid-fido2 = "2.2.3" 
 # ctap-hid-fido2 = { path = "../ctap-hid-fido2" }
-ctap-hid-fido2 = { git = "https://github.com/shimunn/ctap-hid-fido2.git", branch = "user_entity" }
+ctap-hid-fido2 = { git = "https://github.com/shimunn/ctap-hid-fido2.git", branch = "explicit_uv" }
 hex = "0.3.2"
 ring = "0.16.5"
 failure = "0.1.5"

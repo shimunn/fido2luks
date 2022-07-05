@@ -254,8 +254,8 @@ dependencies = [
 
 [[package]]
 name = "ctap-hid-fido2"
-version = "3.3.1"
-source = "git+https://github.com/shimunn/ctap-hid-fido2.git?branch=user_entity#ad95bc3b389e2b9a332b9e9514831a59f964c131"
+version = "3.4.0"
+source = "git+https://github.com/shimunn/ctap-hid-fido2.git?branch=explicit_uv#19161c29835648cc8629b836ddbb757c7f63536a"
 dependencies = [
  "aes",
  "anyhow",

@@ -30,4 +30,4 @@ jobs:
           cache: ${{ secrets.ATTIC_CACHE }}
           token: ${{ secrets.ATTIC_TOKEN }}
       - name: Build Nix Package
-        run: nix build --show-trace
+        run: nix build -j 10 --show-trace

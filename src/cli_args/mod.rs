@@ -80,6 +80,11 @@ pub struct AuthenticatorParameters {
     #[structopt(short = "P", long = "pin")]
     pub pin: bool,
 
+    /// Script to be called to retrive the authenticator PIN
+    /// {n}Will be ignored if `pin-prefixed` is set
+    #[structopt(name = "pin-helper", long = "pin-helper", env = "FIDO2LUKS_PIN_HELPER")]
+    pub pin_helper: Option<PasswordHelper>,
+
     /// Request PIN and password combined `pin:password` when using an password helper
     #[structopt(long = "pin-prefixed")]
     pub pin_prefixed: bool,
@@ -134,7 +139,7 @@ pub struct SecretParameters {
         default_value = "ask"
     )]
     pub salt: SecretInput,
-    /// Script used to obtain passwords, overridden by --interactive flag
+    /// Script to be used to obtain passwords, overridden by --interactive flag
     #[structopt(
         name = "password-helper",
         env = "FIDO2LUKS_PASSWORD_HELPER",

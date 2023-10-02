@@ -19,7 +19,7 @@
           buildInputs = with pkgs; [ cryptsetup ];
           LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
           nativeBuildInputs = with pkgs; [
-            pkgconfig
+            pkg-config
             clang
           ];
         in

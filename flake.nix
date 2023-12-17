@@ -16,9 +16,9 @@
       forPkgs = pkgs:
         let
           naersk-lib = naersk.lib."${pkgs.system}";
-          buildInputs = with pkgs; [ cryptsetup ];
-          LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
+          buildInputs = with pkgs; [ cryptsetup cryptsetup.dev ];
           nativeBuildInputs = with pkgs; [
+            rustPlatform.bindgenHook
             pkg-config
             clang
           ];
@@ -26,7 +26,7 @@
         rec {
           # `nix build`
           packages.${pname} = naersk-lib.buildPackage {
-            inherit pname root buildInputs nativeBuildInputs LIBCLANG_PATH;
+            inherit pname root buildInputs nativeBuildInputs;
           };
           defaultPackage = packages.${pname};
 
@@ -51,7 +51,7 @@
           # `nix develop`
           devShell = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [ rustc cargo rustfmt nixpkgs-fmt ] ++ nativeBuildInputs;
-            inherit buildInputs LIBCLANG_PATH;
+            inherit buildInputs;
           };
         };
       forSystem = system: forPkgs nixpkgs.legacyPackages."${system}";

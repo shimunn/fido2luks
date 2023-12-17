@@ -1,9 +1,8 @@
 use crate::error::*;
 
-use libcryptsetup_rs::{
-    CryptActivateFlag, CryptActivateFlags, CryptDevice, CryptInit, CryptTokenInfo,
-    EncryptionFormat, KeyslotInfo, TokenInput,
-};
+use libcryptsetup_rs::consts::flags::CryptActivate;
+use libcryptsetup_rs::consts::vals::{EncryptionFormat, KeyslotInfo};
+use libcryptsetup_rs::{CryptDevice, CryptInit, CryptTokenInfo, TokenInput};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -204,7 +203,7 @@ impl LuksDevice {
             None,
             None,
             old_secret,
-            CryptActivateFlags::empty(),
+            CryptActivate::empty(),
         )?;
 
         // slot should stay the same but better be safe than sorry
@@ -240,9 +239,9 @@ impl LuksDevice {
         dry_run: bool,
         allow_discard: bool,
     ) -> Fido2LuksResult<u32> {
-        let mut flags = CryptActivateFlags::empty();
+        let mut flags = CryptActivate::empty();
         if allow_discard {
-            flags = CryptActivateFlags::new(vec![CryptActivateFlag::AllowDiscards]);
+            flags = flags | CryptActivate::ALLOW_DISCARDS;
         }
         self.device
             .activate_handle()

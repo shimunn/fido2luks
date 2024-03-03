@@ -16,7 +16,7 @@
       forPkgs = pkgs:
         let
           naersk-lib = naersk.lib."${pkgs.system}";
-          buildInputs = with pkgs; [ cryptsetup cryptsetup.dev ];
+          buildInputs = with pkgs; [ cryptsetup cryptsetup.dev udev.dev ];
           nativeBuildInputs = with pkgs; [
             rustPlatform.bindgenHook
             pkg-config

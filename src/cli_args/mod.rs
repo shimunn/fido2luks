@@ -189,6 +189,9 @@ pub enum Command {
         luks: LuksParameters,
         #[structopt(flatten)]
         credentials: Credentials,
+        /// Comment to be associated with this credential
+        #[structopt(long = "comment")]
+        comment: Option<String>,
         #[structopt(flatten)]
         authenticator: AuthenticatorParameters,
         #[structopt(flatten)]
@@ -254,7 +257,7 @@ pub enum Command {
         #[structopt(flatten)]
         authenticator: AuthenticatorParameters,
         /// Name to be displayed on the authenticator display
-        #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME", default_value = "fido2luks")]
+        #[structopt(env = "FIDO2LUKS_CREDENTIAL_NAME", default_value = "")]
         name: String,
     },
     /// Check if an authenticator is connected
@@ -295,6 +298,9 @@ pub enum TokenCommand {
             long = "creds"
         )]
         credentials: CommaSeparated<HexEncoded>,
+        /// Comment to be associated with this credential
+        #[structopt(long = "comment")]
+        comment: Option<String>,
         /// Slot to which the credentials will be added
         #[structopt(long = "slot", env = "FIDO2LUKS_DEVICE_SLOT")]
         slot: u32,

@@ -141,6 +141,7 @@ impl LuksDevice {
         old_secret: &[u8],
         iteration_time: Option<u64>,
         credential_id: Option<&[u8]>,
+        comment: Option<String>,
     ) -> Fido2LuksResult<u32> {
         if let Some(millis) = iteration_time {
             self.device.settings_handle().set_iteration_time(millis)
@@ -151,7 +152,7 @@ impl LuksDevice {
             .add_by_passphrase(None, old_secret, secret)?;
         if let Some(id) = credential_id {
             self.device.token_handle().json_set(TokenInput::AddToken(
-                &serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap(),
+                &serde_json::to_value(&Fido2LuksToken::new(id, slot, comment)).unwrap(),
             ))?;
         }
 
@@ -215,9 +216,18 @@ impl LuksDevice {
         )? as u32;
         if let Some(id) = credential_id {
             if self.is_luks2()? {
-                let token = self.find_token(slot)?.map(|(t, _)| t);
-                let json = serde_json::to_value(&Fido2LuksToken::new(id, slot)).unwrap();
-                if let Some(token) = token {
+                let (token_id, token_data) = match self.find_token(slot)? {
+                    Some((id, data)) => (Some(id), Some(data)),
+                    _ => (None, None),
+                };
+                let json = serde_json::to_value(&Fido2LuksToken::new(
+                    id,
+                    slot,
+                    // retain comment on replace
+                    token_data.map(|data| data.comment).flatten(),
+                ))
+                .unwrap();
+                if let Some(token) = token_id {
                     self.device
                         .token_handle()
                         .json_set(TokenInput::ReplaceToken(token, &json))?;
@@ -314,16 +324,19 @@ pub struct Fido2LuksToken {
     pub type_: String,
     pub credential: HashSet<String>,
     pub keyslots: HashSet<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
 }
 
 impl Fido2LuksToken {
-    pub fn new(credential_id: impl AsRef<[u8]>, slot: u32) -> Self {
-        Self::with_credentials(std::iter::once(credential_id), slot)
+    pub fn new(credential_id: impl AsRef<[u8]>, slot: u32, comment: Option<String>) -> Self {
+        Self::with_credentials(std::iter::once(credential_id), slot, comment)
     }
 
     pub fn with_credentials<I: IntoIterator<Item = B>, B: AsRef<[u8]>>(
         credentials: I,
         slot: u32,
+        comment: Option<String>,
     ) -> Self {
         Self {
             credential: credentials
@@ -331,6 +344,7 @@ impl Fido2LuksToken {
                 .map(|cred| hex::encode(cred.as_ref()))
                 .collect(),
             keyslots: vec![slot.to_string()].into_iter().collect(),
+            comment,
             ..Default::default()
         }
     }
@@ -345,6 +359,7 @@ impl Default for Fido2LuksToken {
             type_: Self::default_type().into(),
             credential: HashSet::new(),
             keyslots: HashSet::new(),
+            comment: None,
         }
     }
 }

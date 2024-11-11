@@ -25,6 +25,7 @@ serde_derive = "1.0.116"
 serde = "1.0.116"
 anyhow = "1.0.56"
 ctap-hid-fido2 = "3.4.1"
+atty = "0.2"
 
 [build-dependencies]
 hex = "0.3.2"
@@ -34,6 +35,7 @@ rpassword = "4.0.1"
 libcryptsetup-rs = "0.9.1"
 structopt = "0.3.2"
 anyhow = "1.0.56"
+atty = "0.2"
 
 [profile.release]
 lto = true

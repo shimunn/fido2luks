@@ -3,6 +3,7 @@ use ring::digest;
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
+use std::io::{self, BufRead};
 
 pub fn sha256(messages: &[&[u8]]) -> [u8; 32] {
     let mut digest = digest::Context::new(&digest::SHA256);
@@ -17,18 +18,23 @@ pub fn read_password_tty(q: &str, verify: bool) -> Fido2LuksResult<String> {
     read_password(q, verify, true)
 }
 pub fn read_password(q: &str, verify: bool, tty: bool) -> Fido2LuksResult<String> {
-    let res = if tty {
+    // Check if the standard input is a TTY (interactive) or piped
+    let is_tty = atty::is(atty::Stream::Stdin);
+
+    // Read password depending on TTY status
+    let res = if tty && is_tty {
         rpassword::read_password_from_tty(Some(&[q, ": "].join("")))
     } else {
-        print!("{}: ", q);
-        rpassword::read_password()
+        // Use stdin directly if it's not a TTY (e.g., piped input)
+        println!("{}: ", q);
+        let mut input = String::new();
+        io::stdin().lock().read_line(&mut input)?;
+        Ok(input.trim().to_string())
     }?;
+
+    // Handle verification if needed
     match res {
-        ref pass
-            if verify
-                && &rpassword::read_password_from_tty(Some(&[q, "(again): "].join(" ")))?
-                    != pass =>
-        {
+        ref pass if verify && is_tty && &rpassword::read_password_from_tty(Some(&[q, "(again): "].join(" ")))? != pass => {
             Err(Fido2LuksError::AskPassError {
                 cause: AskPassError::Mismatch,
             })

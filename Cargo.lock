@@ -345,6 +345,7 @@ name = "fido2luks"
 version = "0.3.1-alpha"
 dependencies = [
  "anyhow",
+ "atty",
  "ctap-hid-fido2",
  "failure",
  "hex 0.3.2",

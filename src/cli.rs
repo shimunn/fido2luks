@@ -106,7 +106,14 @@ pub fn get_input(
             authenticator.pin && may_require_pin()?,
             authenticator.pin_prefixed,
         ) {
-            (true, false) => (Some(read_pin()?), salt.obtain_sha256(password_helper)?),
+            (true, false) => {
+                let pin = if let Some(ref pin_helper) = authenticator.pin_helper {
+                    pin_helper.obtain()
+                } else {
+                    read_pin()
+                };
+                (Some(pin?), salt.obtain_sha256(password_helper)?)
+            }
             (true, true) => read_password_pin_prefixed(|| {
                 salt.obtain(password_helper).and_then(|secret| {
                     String::from_utf8(secret).map_err(|e| Fido2LuksError::from(e))

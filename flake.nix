@@ -44,9 +44,6 @@
               nativeBuildInputs
               ;
           };
-          nixosModules.default = { ... }: {
-            imports = [ ./nixos/systemd-fido2luks.nix ];
-          };
           defaultPackage = packages.${pname};
 
           # `nix run`
@@ -96,6 +93,9 @@
     (utils.lib.eachSystem [ "aarch64-linux" "i686-linux" "x86_64-linux" ] forSystem)
     // {
       overlay = final: prev: (forPkgs final).packages;
+      nixosModules.default = { ... }: {
+        imports = [ ./nixos/systemd-fido2luks.nix ];
+      };
     };
 
 }

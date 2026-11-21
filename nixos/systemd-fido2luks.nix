@@ -109,7 +109,7 @@
       example = {
         "nixos-crypt" = {
           device = "/dev/nvme0n1p2";
-          # Assuming /dev/nvme0n1p2 contains an LVM2 PV
+	  # Assuming /dev/nvme0n1p2 contains an LVM2 PV
           postOpen = "vgchange -ay";
         };
       };
@@ -135,27 +135,33 @@
     in
       map ({value, ...}: "${value.mapper} is not used by any fileSystem") (lib.attrsToList unused);
 
+    # boot.initrd.kernelModules = [ "dm_mod" "dm_crypt" ];
     # USB/HID + dm-crypt support in initrd
-    boot.initrd.availableKernelModules = [
-      "xhci_pci"
-      "usbhid"
-      "hid_generic"
-      "uhci_hcd"
-      "ehci_pci"
-      "dm_mod"
-      "dm_crypt"
-    ];
+    boot.initrd.kernelModules =
+      [
+        "dm_mod"
+        "dm_crypt"
+        "xhci_pci"
+        "usbhid"
+        "hid_generic"
+        "uhci_hcd"
+        "ehci_pci"
+      ]
+      ++ config.boot.initrd.luks.cryptoModules;
 
     # hidraw access rules for FIDO2 tokens
     boot.initrd.services.udev.packages = [pkgs.libfido2];
 
-    boot.initrd.systemd.storePaths =
-      [
-        "${pkgs.fido2luks}/bin/fido2luks"
-      ]
-      ++ (lib.filter (script: script != null) (
+    boot.initrd.systemd.initrdBin = with pkgs; [
+      fido2luks
+      cryptsetup
+    ];
+
+    boot.initrd.systemd.storePaths = (
+      lib.filter (script: script != null) (
         lib.attrValues (lib.mapAttrs (_: cfg: cfg.postOpenScript) config.boot.fido2luks)
-      ));
+      )
+    );
 
     boot.initrd.systemd.services = let
       unit = mapperName: cfg: {
@@ -184,7 +190,7 @@
             if cfg.passwordLess
             then "string:"
             else "ask";
-          FIDO2LUKS_PASSWORD_HELPER = "${config.boot.initrd.systemd.package}/bin/systemd-ask-password --timeout=0 'FIDO2 salt for ${mapperName}:'";
+          FIDO2LUKS_PASSWORD_HELPER = "${config.boot.initrd.systemd.package}/bin/systemd-ask-password --timeout=0 'FIDO2 password:'";
         };
 
         serviceConfig = {

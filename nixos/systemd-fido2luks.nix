@@ -119,7 +119,7 @@
     assertions =
       [
         {
-          assertion = config.boot.initrd.systemd.enable;
+          assertion = (builtins.compareVersions lib.version "26.05") == 1 || config.boot.initrd.systemd.enable;
           message = "boot.fido2luks requires config.boot.initrd.systemd.enable";
         }
       ]
